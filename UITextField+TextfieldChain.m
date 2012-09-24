@@ -1,6 +1,6 @@
 //
 //  UITextField+TextfieldChain.m
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 02/08/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

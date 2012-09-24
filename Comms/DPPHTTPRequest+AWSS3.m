@@ -1,6 +1,6 @@
 //
 //  DPPHTTPRequest+DPPHTTPRequest_AWSS3.m
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 25/07/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

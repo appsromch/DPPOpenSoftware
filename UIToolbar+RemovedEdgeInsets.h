@@ -1,6 +1,6 @@
 //
 //  UIToolbar+UIToolbar_RemovedEdgeInsets.h
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 23/07/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

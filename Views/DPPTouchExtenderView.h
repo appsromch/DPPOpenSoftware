@@ -1,6 +1,6 @@
 //
 //  DPPTouchExtenderView.h
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 08/08/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

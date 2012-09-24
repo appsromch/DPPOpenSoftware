@@ -1,6 +1,6 @@
 //
 //  NSString+URLEncoding.h
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 27/07/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

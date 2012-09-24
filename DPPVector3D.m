@@ -1,6 +1,6 @@
 //
 //  DPPVector3D.m
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 19/07/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.

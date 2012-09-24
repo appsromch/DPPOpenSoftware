@@ -1,6 +1,6 @@
 //
 //  UIImage+DPPHTTPRequestResource.m
-//  TalkTalkXfactor
+//  
 //
 //  Created by Lee Higgins on 18/08/2012.
 //  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
