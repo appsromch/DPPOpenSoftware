@@ -1,9 +1,7 @@
 //
 //  NSString+Base64.m
 //  
-//
 //  Created by Lee Higgins on 26/07/2012.
-//  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
 //
 
 #import "NSString+Base64.h"

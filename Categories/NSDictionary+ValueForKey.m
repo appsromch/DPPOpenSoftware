@@ -20,6 +20,29 @@
     return nil;
 }
 
+-(BOOL)hasKey:(id)object
+{
+    return [self objectForKey:object]!=nil;
+}
+
+
+-(id)updateValueIfKeyExists:(NSString*)key defaultValue:(id)originalValue
+{
+    if([self hasKey:key])
+    {
+        /*if(originalValue!=nil)
+        {
+            return [self valueForKeyOrNil:key ofClass:[originalValue class]];
+        }
+        else*/
+        {
+            return [self valueForKeyOrNil:key]; 
+        }
+    }
+    return originalValue;
+}
+
+
 
 
 @end

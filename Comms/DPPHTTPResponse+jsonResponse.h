@@ -1,9 +1,6 @@
 //
 //  DPPHTTPResponse+jsonResponse.h
-//  
-//
 //  Created by Lee Higgins on 24/07/2012.
-//  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
 //
 
 #import "DPPHTTPResponse.h"

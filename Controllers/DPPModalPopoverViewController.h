@@ -15,7 +15,7 @@
 @interface UIViewController(DPPModalPopoverViewController)
 
 -(void)presentDPPModalPopoverViewController:(UIViewController*)viewController animated:(BOOL)animated;
-
+-(void)pushDPPModalPopoverViewController:(UIViewController*)viewController animated:(BOOL)animated;
 @end
 
 @interface DPPModalPopoverViewController : UIViewController
@@ -27,7 +27,7 @@
 @property(nonatomic,retain) IBOutlet UIView* veilView; //set the background colour to change style of fade
 
 +(void)presentModalPopoverViewController:(UIViewController*)viewController fromController:(UIViewController*)sourceController animated:(BOOL)animated;
-
++(void)pushModalPopoverViewController:(UIViewController*)viewController inNavigation:(UINavigationController*)sourceController animated:(BOOL)animated;
 -(IBAction)dismiss:(id)sender;
 
 @end

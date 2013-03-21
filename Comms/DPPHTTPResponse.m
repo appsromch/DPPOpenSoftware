@@ -1,9 +1,6 @@
 //
 //  DPPHTTPResponse.m
-//  Rovio
-//
 //  Created by Lee Higgins on 15/04/2012.
-//  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
 //
 
 #import "DPPHTTPResponse.h"
@@ -13,6 +10,9 @@
 @synthesize body;
 @synthesize header;
 @synthesize bodyStream;
+@synthesize processedBody;
+@synthesize isValid;
+
 @dynamic bodyString;
 
 
@@ -20,8 +20,14 @@
 {
     if(body)
     {
-        //TODO: detect string encoding.....
-        return [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding]; 
+        NSStringEncoding stringEncoding = NSUTF8StringEncoding;
+        if (self.header.textEncodingName) {
+            CFStringEncoding IANAEncoding = CFStringConvertIANACharSetNameToEncoding((__bridge CFStringRef)self.header.textEncodingName);
+            if (IANAEncoding != kCFStringEncodingInvalidId) {
+                stringEncoding = CFStringConvertEncodingToNSStringEncoding(IANAEncoding);
+            }
+        }
+        return [[NSString alloc] initWithData:body encoding:stringEncoding]; 
     }
     return nil;
 }

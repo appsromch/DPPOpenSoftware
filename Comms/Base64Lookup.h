@@ -10,7 +10,7 @@
 #define Base64Lookup_Header_h
 //LH should move to m file to kill warning...
 
-static char        base64EncodingTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+static char __attribute__((unused)) base64EncodingTable[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 static const short base64DecodingTable[] =
 {

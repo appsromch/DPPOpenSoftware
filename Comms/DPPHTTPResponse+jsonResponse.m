@@ -7,26 +7,30 @@
 //
 
 #import "DPPHTTPResponse+jsonResponse.h"
-
+#import "DPPHTTPRequest.h"
 @implementation DPPHTTPResponse (JSONResponse)
 
 
 +(NSString*)JSONcontentTypeString
 {
-    return @"application/json";
+    return kHTTPContentTypeJSON;
 }
 
 -(NSDictionary*)bodyJSON
 {
     NSError* error=nil;
     
-    id jsonData = [NSJSONSerialization JSONObjectWithData:self.body options:NSJSONReadingMutableContainers  error:&error];
+    id jsonData = [NSJSONSerialization JSONObjectWithData:self.body options:NSJSONReadingMutableContainers|NSJSONReadingAllowFragments  error:&error];
                        
     NSDictionary*   jsonDict = nil;
+    
+    if(error)
+    {
+        return nil;
+    }
 
     if([jsonData isKindOfClass:[NSArray class]])
     {//if we are an array put us in a root dictionary
-
        jsonDict = [NSMutableDictionary dictionaryWithObjectsAndKeys:jsonData,@"root", nil];
     }
     else 

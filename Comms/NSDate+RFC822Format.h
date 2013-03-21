@@ -1,9 +1,7 @@
 //
 //  NSDate+RFC822Format.h
 //  
-//
 //  Created by Lee Higgins on 26/07/2012.
-//  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
 //
 
 #import <Foundation/Foundation.h>

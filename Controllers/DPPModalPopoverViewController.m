@@ -18,6 +18,10 @@
 {
     [DPPModalPopoverViewController presentModalPopoverViewController:viewController fromController:self animated:animated ];
 }
+-(void)pushDPPModalPopoverViewController:(UIViewController*)viewController animated:(BOOL)animated
+{
+    [DPPModalPopoverViewController pushModalPopoverViewController:viewController inNavigation:self.navigationController animated:animated ];
+}
 @end
 
 
@@ -66,6 +70,35 @@
    // newOverlay.animateAfterLoad = animated;
 
     //TODO:LH decide if we should use a modal or just add to root window... 
+    //screenshot does not work on maps view...
+}
+
++(void)pushModalPopoverViewController:(UIViewController*)viewController inNavigation:(UINavigationController*)sourceController animated:(BOOL)animated
+{
+    NSString* nibName = nil;
+    if([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad)
+    {
+        nibName = [NSString stringWithFormat:@"%@_iPad",NSStringFromClass([self class])];
+    }
+    else
+    {
+        nibName = [NSString stringWithFormat:@"%@_iPhone",NSStringFromClass([self class])];
+        
+    }
+    DPPModalPopoverViewController* newOverlay = [[DPPModalPopoverViewController alloc] initWithNibName:nibName bundle:nil];//nil will use class name
+    newOverlay.sourceController = sourceController;
+    newOverlay.containedController = viewController;
+    if([newOverlay.containedController respondsToSelector:@selector(setParentVC:)])
+    {
+        id childVC = newOverlay.containedController;
+        [childVC performSelector:@selector(setParentVC:) withObject:newOverlay];
+    }
+    [sourceController pushViewController:newOverlay animated:NO]; //animation contained in newOverlay
+    if(animated)
+        [newOverlay animateIn];
+    // newOverlay.animateAfterLoad = animated;
+    
+    //TODO:LH decide if we should use a modal or just add to root window...
     //screenshot does not work on maps view...
 }
 - (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil

@@ -11,10 +11,14 @@
 @implementation NSString (URLEncoding)
 
 
-+(NSString*)urlEscapeString:(NSString *)unencodedString 
++(NSString*)urlEscapeString:(NSString *)unencodedString
 {
     CFStringRef originalStringRef = (__bridge_retained CFStringRef)unencodedString;
-    NSString *s = (__bridge_transfer NSString *)CFURLCreateStringByAddingPercentEscapes(NULL,originalStringRef, NULL, NULL,kCFStringEncodingUTF8);
+    NSString *s = (__bridge_transfer NSString *)CFURLCreateStringByAddingPercentEscapes(NULL,
+                                                                                        (CFStringRef)originalStringRef,
+                                                                                        NULL,
+                                                                                        (CFStringRef)@"!*'\"();:@&=+$,/?%#[]% ",
+                                                                                        kCFStringEncodingUTF8);
     CFRelease(originalStringRef);
     return s;
 }

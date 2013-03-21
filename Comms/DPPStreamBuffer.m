@@ -1,9 +1,6 @@
 //
 //  DPPStreamBuffer.m
-//  ContactsTest
-//
 //  Created by Lee Higgins on 07/05/2012.
-//  Copyright (c) 2012 DepthPerPixel ltd. All rights reserved.
 //
 
 #import "DPPStreamBuffer.h"
