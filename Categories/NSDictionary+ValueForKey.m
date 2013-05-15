@@ -35,6 +35,9 @@
             return [self valueForKeyOrNil:key ofClass:[originalValue class]];
         }
         else*/
+        id newValue = [self valueForKeyOrNil:key]; //LH only update if Different
+        
+        if(![originalValue isEqual:newValue])
         {
             return [self valueForKeyOrNil:key]; 
         }

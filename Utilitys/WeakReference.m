@@ -31,4 +31,9 @@
     return object.originalObjectValue == self.originalObjectValue;
 }
 
+-(NSUInteger)hash
+{
+    return (NSUInteger)nonretainedObjectValue;
+}
+
 @end

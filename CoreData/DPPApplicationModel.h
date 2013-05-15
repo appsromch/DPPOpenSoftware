@@ -9,6 +9,8 @@
 #import <Foundation/Foundation.h>
 #import <CoreData/CoreData.h>
 
+#define DPPApplicationModelDEBUG 0
+
 @protocol DPPApplicationObjectChangesDelegate <NSObject>
 @optional
 -(void)applicationModelObjectWillChange:(NSManagedObject*)object;
@@ -42,7 +44,7 @@
 
 //LH a temporary instance, for advanced users.
 //The context will be saved when this instance is dealloc'd
-+(DPPApplicationModel*)instance;
+//+(DPPApplicationModel*)instance;
 
 //LH a background instance, use this in background threads.
 //The context will be saved when this instance is dealloc'd
@@ -96,6 +98,10 @@
 -(NSManagedObject*)insertNewEntityNamed:(NSString*)entityName
                                 ofClass:(Class)entityClass;
 
+-(NSManagedObject*)fetchOrInsertEntityOfClass:(Class)entityClass
+                          withUniqueAttribute:(NSString *)attributeName
+                                    withValue:(id)valueObject;
+
 -(NSManagedObject*)fetchEntityNamed:(NSString *)entityName
                             ofClass:(Class)entityClass
                 withUniqueAttribute:(NSString *)attributeName withValue:(id)valueObject;
@@ -125,8 +131,14 @@
 //This will run once the context has been merged with the main context......
 //Use this to update display after background changes to coredata.....
 //this is called after the observer callbacks...
--(void)addMergeCompletion:(void (^)(void))completion;
+-(BOOL)addMergeCompletion:(void (^)(void))completion;
+
+//WARNING the will wipeout the database....
+-(void)resetDatabaseFromBundle;
+
++(dispatch_queue_t)defaultDispatchQueue;
 
 
++(void)updateInBackground:(void (^)(DPPApplicationModel* model))updates completion:(void (^)(void))completion;;
 
 @end

@@ -1,6 +1,7 @@
 
 
 #import "DPPNibInstanceView.h"
+#import "WeakReference.h"
 
 @implementation DPPNibInstanceView
 
@@ -13,6 +14,13 @@
 static NSMutableDictionary* instancesNotInUse =nil;
 static NSMutableDictionary* instancesInUse = nil;
 
+
++(void)initialize
+{
+    [super initialize];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarning)
+                                                 name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+}
 +(id)instanceFromNib:(NSString*)nibName
 {
     NSArray* views = [[NSBundle mainBundle] loadNibNamed:nibName owner:self options:nil];
@@ -27,6 +35,15 @@ static NSMutableDictionary* instancesInUse = nil;
     return nil;
 }
 
++(void)memoryWarning
+{
+    for(id key in instancesInUse.allKeys)
+    {
+        NSMutableSet* notInUse = [instancesNotInUse objectForKey:key];
+        [notInUse removeAllObjects];
+    }
+}
+
 +(void)enqueueInstance:(id)object
 {
     if(instancesNotInUse == nil)
@@ -37,25 +54,34 @@ static NSMutableDictionary* instancesInUse = nil;
     for(id key in instancesInUse.allKeys)
     {
         NSMutableSet* inuse = [instancesInUse objectForKey:key];
-        if([inuse containsObject:object])
+        WeakReference* weakObject = [WeakReference weakReferenceWithObject:object];
+        if([inuse containsObject:weakObject])
         {
             NSMutableSet* notInuse = [instancesNotInUse objectForKey:key];
+            
             if(notInuse==nil)
             {
-                notInuse = [NSMutableSet setWithObject:object];
+                notInuse = [NSMutableSet setWithObject:weakObject];
                 [instancesNotInUse setObject:notInuse forKey:key];
             }
             else
             {
-                [notInuse addObject:object];
+                [notInuse addObject:weakObject];
             }
-            [inuse removeObject:object];
+            
+            [inuse removeObject:weakObject];
+            
+            for(WeakReference* weakObject in inuse.copy)
+            {//LH clean any dead ref's
+                if(weakObject.nonretainedObjectValue == nil)
+                {
+                    [inuse removeObject:weakObject];
+                     NSLog(@"cleaned instance %@",key);
+                }
+            }
+            
              NSLog(@"recycled instance %@(%d)",key,instancesNotInUse.count);
             break;
-        }
-        else
-        {
-             NSLog(@"not for this recycle bin! %@",object);
         }
     }
 
@@ -71,29 +97,31 @@ static NSMutableDictionary* instancesInUse = nil;
     NSMutableSet* notInuse = [instancesNotInUse objectForKey:nibName];
     NSMutableSet* inuse = [instancesInUse objectForKey:nibName];
     
-    id cachedInstance = [notInuse anyObject];
+    //we keep a weak reference on the in-use list as the client could never give back the view...
+    WeakReference* weakObject = [notInuse anyObject];
     
-    if(cachedInstance == nil)
+    if(weakObject == nil)
     {
-        cachedInstance = [self instanceFromNib:nibName];
+        id newInstance = [self instanceFromNib:nibName];
+        weakObject = [WeakReference weakReferenceWithObject:newInstance];
         if(inuse == nil)
         {
-            inuse = [NSMutableSet setWithObject:cachedInstance];
+            inuse = [NSMutableSet setWithObject:weakObject];
             [instancesInUse setObject:inuse forKey:nibName];
         }
         else
         {
-            [inuse addObject:cachedInstance];
+            [inuse addObject:weakObject];
         }
         NSLog(@"New instance %@(%d)",nibName,inuse.count);
     }
     else
     {
-        [inuse addObject:cachedInstance];
-        [notInuse removeObject:cachedInstance];
+        [inuse addObject:weakObject];
+        [notInuse removeObject:weakObject];
         NSLog(@"cached instance %@(%d)",nibName,inuse.count);
     }
-    return cachedInstance;
+    return weakObject.nonretainedObjectValue;
 }
 
 -(id)replaceWithNibInstance:(NSString*)nibName
@@ -107,5 +135,7 @@ static NSMutableDictionary* instancesInUse = nil;
     }
     return nibInstance;
 }
+
+
 
 @end

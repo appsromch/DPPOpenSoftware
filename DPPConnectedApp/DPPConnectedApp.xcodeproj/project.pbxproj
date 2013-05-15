@@ -11,9 +11,6 @@
 		ADAF159A1623394500EA4602 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = ADAF15991623394500EA4602 /* Foundation.framework */; };
 		ADAF15A01623394500EA4602 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = ADAF159E1623394500EA4602 /* InfoPlist.strings */; };
 		ADAF15BE1623396600EA4602 /* Base64Lookup.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15A81623396600EA4602 /* Base64Lookup.h */; };
-		ADAF15BF1623396600EA4602 /* DPPHTTPRequest+AWSS3.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15A91623396600EA4602 /* DPPHTTPRequest+AWSS3.h */; };
-		ADAF15C01623396600EA4602 /* DPPHTTPRequest+AWSS3.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15AA1623396600EA4602 /* DPPHTTPRequest+AWSS3.m */; };
-		ADAF15C11623396600EA4602 /* DPPHTTPRequest+DPPHTTPRequest_AWSS3.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15AB1623396600EA4602 /* DPPHTTPRequest+DPPHTTPRequest_AWSS3.h */; };
 		ADAF15C21623396600EA4602 /* DPPHTTPRequest.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15AC1623396600EA4602 /* DPPHTTPRequest.h */; };
 		ADAF15C31623396600EA4602 /* DPPHTTPRequest.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15AD1623396600EA4602 /* DPPHTTPRequest.m */; };
 		ADAF15C41623396600EA4602 /* DPPHTTPResponse+jsonResponse.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15AE1623396600EA4602 /* DPPHTTPResponse+jsonResponse.h */; };
@@ -22,8 +19,6 @@
 		ADAF15C71623396600EA4602 /* DPPHTTPResponse.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15B11623396600EA4602 /* DPPHTTPResponse.m */; };
 		ADAF15C81623396600EA4602 /* DPPStreamBuffer.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15B21623396600EA4602 /* DPPStreamBuffer.h */; };
 		ADAF15C91623396600EA4602 /* DPPStreamBuffer.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15B31623396600EA4602 /* DPPStreamBuffer.m */; };
-		ADAF15CA1623396600EA4602 /* DPPXMLCoreDataMapper.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15B41623396600EA4602 /* DPPXMLCoreDataMapper.h */; };
-		ADAF15CB1623396600EA4602 /* DPPXMLCoreDataMapper.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15B51623396600EA4602 /* DPPXMLCoreDataMapper.m */; };
 		ADAF15CC1623396600EA4602 /* NSData+Base64.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15B61623396600EA4602 /* NSData+Base64.h */; };
 		ADAF15CD1623396600EA4602 /* NSData+Base64.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15B71623396600EA4602 /* NSData+Base64.m */; };
 		ADAF15CE1623396600EA4602 /* NSDate+RFC822Format.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15B81623396600EA4602 /* NSDate+RFC822Format.h */; };
@@ -34,6 +29,17 @@
 		ADAF15D31623396600EA4602 /* NSString+URLEncoding.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15BD1623396600EA4602 /* NSString+URLEncoding.m */; };
 		ADAF15D71623399600EA4602 /* DPPApplicationModel.h in Headers */ = {isa = PBXBuildFile; fileRef = ADAF15D51623399600EA4602 /* DPPApplicationModel.h */; };
 		ADAF15D81623399600EA4602 /* DPPApplicationModel.m in Sources */ = {isa = PBXBuildFile; fileRef = ADAF15D61623399600EA4602 /* DPPApplicationModel.m */; };
+		ADCDA60E1730F86C0055D5E3 /* DPPUIViewCamera3D.h in Headers */ = {isa = PBXBuildFile; fileRef = ADCDA60C1730F86C0055D5E3 /* DPPUIViewCamera3D.h */; };
+		ADCDA60F1730F86C0055D5E3 /* DPPUIViewCamera3D.m in Sources */ = {isa = PBXBuildFile; fileRef = ADCDA60D1730F86C0055D5E3 /* DPPUIViewCamera3D.m */; };
+		ADCDA612173104390055D5E3 /* DPPUIViewWorld3D.h in Headers */ = {isa = PBXBuildFile; fileRef = ADCDA610173104390055D5E3 /* DPPUIViewWorld3D.h */; };
+		ADCDA613173104390055D5E3 /* DPPUIViewWorld3D.m in Sources */ = {isa = PBXBuildFile; fileRef = ADCDA611173104390055D5E3 /* DPPUIViewWorld3D.m */; };
+		ADCDA616173107E30055D5E3 /* DPPQuadTree3D.h in Headers */ = {isa = PBXBuildFile; fileRef = ADCDA614173107E30055D5E3 /* DPPQuadTree3D.h */; };
+		ADCDA617173107E30055D5E3 /* DPPQuadTree3D.m in Sources */ = {isa = PBXBuildFile; fileRef = ADCDA615173107E30055D5E3 /* DPPQuadTree3D.m */; };
+		ADCDA6191731082B0055D5E3 /* DPP3D.h in Headers */ = {isa = PBXBuildFile; fileRef = ADCDA6181731082B0055D5E3 /* DPP3D.h */; };
+		ADD68A25172A8ABF00562481 /* WeakReference.h in Headers */ = {isa = PBXBuildFile; fileRef = ADD68A23172A8ABF00562481 /* WeakReference.h */; };
+		ADD68A26172A8ABF00562481 /* WeakReference.m in Sources */ = {isa = PBXBuildFile; fileRef = ADD68A24172A8ABF00562481 /* WeakReference.m */; };
+		ADD68A29172A8CE800562481 /* DPPManagedObjectJSONMapper.h in Headers */ = {isa = PBXBuildFile; fileRef = ADD68A27172A8CE800562481 /* DPPManagedObjectJSONMapper.h */; };
+		ADD68A2A172A8CE800562481 /* DPPManagedObjectJSONMapper.m in Sources */ = {isa = PBXBuildFile; fileRef = ADD68A28172A8CE800562481 /* DPPManagedObjectJSONMapper.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,9 +49,6 @@
 		ADAF159F1623394500EA4602 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		ADAF15A11623394500EA4602 /* DPPConnectedApp-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DPPConnectedApp-Prefix.pch"; sourceTree = "<group>"; };
 		ADAF15A81623396600EA4602 /* Base64Lookup.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Base64Lookup.h; sourceTree = "<group>"; };
-		ADAF15A91623396600EA4602 /* DPPHTTPRequest+AWSS3.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "DPPHTTPRequest+AWSS3.h"; sourceTree = "<group>"; };
-		ADAF15AA1623396600EA4602 /* DPPHTTPRequest+AWSS3.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "DPPHTTPRequest+AWSS3.m"; sourceTree = "<group>"; };
-		ADAF15AB1623396600EA4602 /* DPPHTTPRequest+DPPHTTPRequest_AWSS3.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "DPPHTTPRequest+DPPHTTPRequest_AWSS3.h"; sourceTree = "<group>"; };
 		ADAF15AC1623396600EA4602 /* DPPHTTPRequest.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DPPHTTPRequest.h; sourceTree = "<group>"; };
 		ADAF15AD1623396600EA4602 /* DPPHTTPRequest.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPHTTPRequest.m; sourceTree = "<group>"; };
 		ADAF15AE1623396600EA4602 /* DPPHTTPResponse+jsonResponse.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "DPPHTTPResponse+jsonResponse.h"; sourceTree = "<group>"; };
@@ -54,8 +57,6 @@
 		ADAF15B11623396600EA4602 /* DPPHTTPResponse.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPHTTPResponse.m; sourceTree = "<group>"; };
 		ADAF15B21623396600EA4602 /* DPPStreamBuffer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DPPStreamBuffer.h; sourceTree = "<group>"; };
 		ADAF15B31623396600EA4602 /* DPPStreamBuffer.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPStreamBuffer.m; sourceTree = "<group>"; };
-		ADAF15B41623396600EA4602 /* DPPXMLCoreDataMapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DPPXMLCoreDataMapper.h; sourceTree = "<group>"; };
-		ADAF15B51623396600EA4602 /* DPPXMLCoreDataMapper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPXMLCoreDataMapper.m; sourceTree = "<group>"; };
 		ADAF15B61623396600EA4602 /* NSData+Base64.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSData+Base64.h"; sourceTree = "<group>"; };
 		ADAF15B71623396600EA4602 /* NSData+Base64.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSData+Base64.m"; sourceTree = "<group>"; };
 		ADAF15B81623396600EA4602 /* NSDate+RFC822Format.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "NSDate+RFC822Format.h"; sourceTree = "<group>"; };
@@ -66,6 +67,17 @@
 		ADAF15BD1623396600EA4602 /* NSString+URLEncoding.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSString+URLEncoding.m"; sourceTree = "<group>"; };
 		ADAF15D51623399600EA4602 /* DPPApplicationModel.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DPPApplicationModel.h; sourceTree = "<group>"; };
 		ADAF15D61623399600EA4602 /* DPPApplicationModel.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPApplicationModel.m; sourceTree = "<group>"; };
+		ADCDA60C1730F86C0055D5E3 /* DPPUIViewCamera3D.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DPPUIViewCamera3D.h; path = ../../Views/DPPUIViewCamera3D.h; sourceTree = "<group>"; };
+		ADCDA60D1730F86C0055D5E3 /* DPPUIViewCamera3D.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DPPUIViewCamera3D.m; path = ../../Views/DPPUIViewCamera3D.m; sourceTree = "<group>"; };
+		ADCDA610173104390055D5E3 /* DPPUIViewWorld3D.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DPPUIViewWorld3D.h; path = ../../Views/DPPUIViewWorld3D.h; sourceTree = "<group>"; };
+		ADCDA611173104390055D5E3 /* DPPUIViewWorld3D.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DPPUIViewWorld3D.m; path = ../../Views/DPPUIViewWorld3D.m; sourceTree = "<group>"; };
+		ADCDA614173107E30055D5E3 /* DPPQuadTree3D.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DPPQuadTree3D.h; path = ../../Views/DPPQuadTree3D.h; sourceTree = "<group>"; };
+		ADCDA615173107E30055D5E3 /* DPPQuadTree3D.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = DPPQuadTree3D.m; path = ../../Views/DPPQuadTree3D.m; sourceTree = "<group>"; };
+		ADCDA6181731082B0055D5E3 /* DPP3D.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = DPP3D.h; path = ../../Views/DPP3D.h; sourceTree = "<group>"; };
+		ADD68A23172A8ABF00562481 /* WeakReference.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WeakReference.h; path = ../../Utilitys/WeakReference.h; sourceTree = "<group>"; };
+		ADD68A24172A8ABF00562481 /* WeakReference.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = WeakReference.m; path = ../../Utilitys/WeakReference.m; sourceTree = "<group>"; };
+		ADD68A27172A8CE800562481 /* DPPManagedObjectJSONMapper.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DPPManagedObjectJSONMapper.h; sourceTree = "<group>"; };
+		ADD68A28172A8CE800562481 /* DPPManagedObjectJSONMapper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = DPPManagedObjectJSONMapper.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -108,6 +120,7 @@
 		ADAF159B1623394500EA4602 /* DPPConnectedApp */ = {
 			isa = PBXGroup;
 			children = (
+				ADCDA60B1730F81C0055D5E3 /* Views */,
 				AD6FE5231623412200202904 /* Macros */,
 				ADAF15D41623399600EA4602 /* CoreData */,
 				ADAF15A71623396600EA4602 /* Comms */,
@@ -119,6 +132,8 @@
 		ADAF159C1623394500EA4602 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				ADD68A23172A8ABF00562481 /* WeakReference.h */,
+				ADD68A24172A8ABF00562481 /* WeakReference.m */,
 				ADAF159D1623394500EA4602 /* DPPConnectedApp-Info.plist */,
 				ADAF159E1623394500EA4602 /* InfoPlist.strings */,
 				ADAF15A11623394500EA4602 /* DPPConnectedApp-Prefix.pch */,
@@ -130,9 +145,6 @@
 			isa = PBXGroup;
 			children = (
 				ADAF15A81623396600EA4602 /* Base64Lookup.h */,
-				ADAF15A91623396600EA4602 /* DPPHTTPRequest+AWSS3.h */,
-				ADAF15AA1623396600EA4602 /* DPPHTTPRequest+AWSS3.m */,
-				ADAF15AB1623396600EA4602 /* DPPHTTPRequest+DPPHTTPRequest_AWSS3.h */,
 				ADAF15AC1623396600EA4602 /* DPPHTTPRequest.h */,
 				ADAF15AD1623396600EA4602 /* DPPHTTPRequest.m */,
 				ADAF15AE1623396600EA4602 /* DPPHTTPResponse+jsonResponse.h */,
@@ -141,8 +153,6 @@
 				ADAF15B11623396600EA4602 /* DPPHTTPResponse.m */,
 				ADAF15B21623396600EA4602 /* DPPStreamBuffer.h */,
 				ADAF15B31623396600EA4602 /* DPPStreamBuffer.m */,
-				ADAF15B41623396600EA4602 /* DPPXMLCoreDataMapper.h */,
-				ADAF15B51623396600EA4602 /* DPPXMLCoreDataMapper.m */,
 				ADAF15B61623396600EA4602 /* NSData+Base64.h */,
 				ADAF15B71623396600EA4602 /* NSData+Base64.m */,
 				ADAF15B81623396600EA4602 /* NSDate+RFC822Format.h */,
@@ -161,9 +171,25 @@
 			children = (
 				ADAF15D51623399600EA4602 /* DPPApplicationModel.h */,
 				ADAF15D61623399600EA4602 /* DPPApplicationModel.m */,
+				ADD68A27172A8CE800562481 /* DPPManagedObjectJSONMapper.h */,
+				ADD68A28172A8CE800562481 /* DPPManagedObjectJSONMapper.m */,
 			);
 			name = CoreData;
 			path = ../../CoreData;
+			sourceTree = "<group>";
+		};
+		ADCDA60B1730F81C0055D5E3 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				ADCDA60C1730F86C0055D5E3 /* DPPUIViewCamera3D.h */,
+				ADCDA60D1730F86C0055D5E3 /* DPPUIViewCamera3D.m */,
+				ADCDA610173104390055D5E3 /* DPPUIViewWorld3D.h */,
+				ADCDA611173104390055D5E3 /* DPPUIViewWorld3D.m */,
+				ADCDA614173107E30055D5E3 /* DPPQuadTree3D.h */,
+				ADCDA615173107E30055D5E3 /* DPPQuadTree3D.m */,
+				ADCDA6181731082B0055D5E3 /* DPP3D.h */,
+			);
+			name = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -174,19 +200,22 @@
 			buildActionMask = 2147483647;
 			files = (
 				ADAF15BE1623396600EA4602 /* Base64Lookup.h in Headers */,
-				ADAF15BF1623396600EA4602 /* DPPHTTPRequest+AWSS3.h in Headers */,
-				ADAF15C11623396600EA4602 /* DPPHTTPRequest+DPPHTTPRequest_AWSS3.h in Headers */,
 				ADAF15C21623396600EA4602 /* DPPHTTPRequest.h in Headers */,
 				ADAF15C41623396600EA4602 /* DPPHTTPResponse+jsonResponse.h in Headers */,
 				ADAF15C61623396600EA4602 /* DPPHTTPResponse.h in Headers */,
 				ADAF15C81623396600EA4602 /* DPPStreamBuffer.h in Headers */,
-				ADAF15CA1623396600EA4602 /* DPPXMLCoreDataMapper.h in Headers */,
 				ADAF15CC1623396600EA4602 /* NSData+Base64.h in Headers */,
 				ADAF15CE1623396600EA4602 /* NSDate+RFC822Format.h in Headers */,
 				ADAF15D01623396600EA4602 /* NSString+Base64.h in Headers */,
 				ADAF15D21623396600EA4602 /* NSString+URLEncoding.h in Headers */,
 				ADAF15D71623399600EA4602 /* DPPApplicationModel.h in Headers */,
 				AD6FE5251623412200202904 /* DPPARCCompatibility.h in Headers */,
+				ADD68A25172A8ABF00562481 /* WeakReference.h in Headers */,
+				ADD68A29172A8CE800562481 /* DPPManagedObjectJSONMapper.h in Headers */,
+				ADCDA60E1730F86C0055D5E3 /* DPPUIViewCamera3D.h in Headers */,
+				ADCDA612173104390055D5E3 /* DPPUIViewWorld3D.h in Headers */,
+				ADCDA616173107E30055D5E3 /* DPPQuadTree3D.h in Headers */,
+				ADCDA6191731082B0055D5E3 /* DPP3D.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -296,17 +325,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				ADAF15C01623396600EA4602 /* DPPHTTPRequest+AWSS3.m in Sources */,
 				ADAF15C31623396600EA4602 /* DPPHTTPRequest.m in Sources */,
 				ADAF15C51623396600EA4602 /* DPPHTTPResponse+jsonResponse.m in Sources */,
 				ADAF15C71623396600EA4602 /* DPPHTTPResponse.m in Sources */,
 				ADAF15C91623396600EA4602 /* DPPStreamBuffer.m in Sources */,
-				ADAF15CB1623396600EA4602 /* DPPXMLCoreDataMapper.m in Sources */,
 				ADAF15CD1623396600EA4602 /* NSData+Base64.m in Sources */,
 				ADAF15CF1623396600EA4602 /* NSDate+RFC822Format.m in Sources */,
 				ADAF15D11623396600EA4602 /* NSString+Base64.m in Sources */,
 				ADAF15D31623396600EA4602 /* NSString+URLEncoding.m in Sources */,
 				ADAF15D81623399600EA4602 /* DPPApplicationModel.m in Sources */,
+				ADD68A26172A8ABF00562481 /* WeakReference.m in Sources */,
+				ADD68A2A172A8CE800562481 /* DPPManagedObjectJSONMapper.m in Sources */,
+				ADCDA60F1730F86C0055D5E3 /* DPPUIViewCamera3D.m in Sources */,
+				ADCDA613173104390055D5E3 /* DPPUIViewWorld3D.m in Sources */,
+				ADCDA617173107E30055D5E3 /* DPPQuadTree3D.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

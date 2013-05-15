@@ -7,7 +7,7 @@
 
 #import <Foundation/Foundation.h>
 
-
+#define updateValueIfKeyExists(key,value,data) value = [data updateValueIfKeyExists:key defaultValue:value]
 
 @interface NSDictionary (ValueForKey)
 

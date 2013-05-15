@@ -14,6 +14,7 @@
 @property(nonatomic,retain) NSDictionary* originalViewRects;
 @property(nonatomic,retain) NSArray* clippedViews;
 @property(nonatomic,retain) NSArray* subviewHiddenState;
+@property(nonatomic,assign) float gap;
 
 @end
 
@@ -45,6 +46,16 @@
  
 }
 
+-(void)setItemGap:(NSNumber *)itemGap
+{
+    gap = [itemGap floatValue];
+}
+
+-(NSNumber*)itemGap
+{
+    return [NSNumber numberWithFloat:gap];
+}
+
 -(void)saveOriginalRects
 {
     //collect the original bounds to use as max bounds...
@@ -70,6 +81,7 @@
     layoutBounds = CGRectZero;
     for(UIView* subview in self.subviews)
     {
+         if([_excludedViews containsObject:subview]) continue;
         NSValue* rectValue = [originalViewRects objectForKey:[NSValue valueWithNonretainedObject:subview]];
         if(rectValue)
         {
@@ -86,6 +98,7 @@
                 else*/
                 {
                     newSize = [subview sizeThatFits:orignalRect.size];
+                      newSize.width = orignalRect.size.width; //LH keep the original rect
                 }
                 subview.bounds = CGRectMake(0, 0, MIN(newSize.width,orignalRect.size.width), MIN(newSize.height,orignalRect.size.height));
                 subview.frame = CGRectOffset(subview.bounds,orignalRect.origin.x,accumY);
@@ -113,6 +126,8 @@
     layoutBounds = CGRectZero;
     for(UIView* subview in self.subviews.reverseObjectEnumerator)
     {
+        if([_excludedViews containsObject:subview]) continue;
+        
         NSValue* rectValue = [originalViewRects objectForKey:[NSValue valueWithNonretainedObject:subview]];
         if(rectValue)
         {
@@ -131,6 +146,7 @@
                 else*/
                 {
                     newSize = [subview sizeThatFits:orignalRect.size];
+                     newSize.width = orignalRect.size.width; //LH keep the original rect
                 }
                 subview.bounds = CGRectMake(0, 0, MIN(newSize.width,orignalRect.size.width), MIN(newSize.height,orignalRect.size.height));
                 subview.frame = CGRectOffset(subview.bounds, orignalRect.origin.x,accumY-subview.bounds.size.height);
@@ -147,6 +163,7 @@
     layoutBounds = CGRectZero;
     for(UIView* subview in self.subviews)
     {
+         if([_excludedViews containsObject:subview]) continue;
         NSValue* rectValue = [originalViewRects objectForKey:[NSValue valueWithNonretainedObject:subview]];
         if(rectValue)
         {
@@ -163,6 +180,7 @@
                 else*/
                 {
                     newSize = [subview sizeThatFits:orignalRect.size];
+                    newSize.height = orignalRect.size.height; //LH keep the original rect height as we aligning left
                 }
                 subview.bounds = CGRectMake(0, 0, MIN(newSize.width,orignalRect.size.width), MIN(newSize.height,orignalRect.size.height));
                 subview.frame = CGRectOffset(subview.bounds, accumX,orignalRect.origin.y);
@@ -189,6 +207,7 @@
     layoutBounds = CGRectZero;
     for(UIView* subview in self.subviews.reverseObjectEnumerator)
     {
+         if([_excludedViews containsObject:subview]) continue;
         NSValue* rectValue = [originalViewRects objectForKey:[NSValue valueWithNonretainedObject:subview]];
         if(rectValue)
         {
@@ -205,6 +224,7 @@
                 else*/
                 {
                     newSize = [subview sizeThatFits:orignalRect.size];
+                     newSize.height = orignalRect.size.height;
                 }
                 subview.bounds = CGRectMake(0, 0, MIN(newSize.width,orignalRect.size.width), MIN(newSize.height,orignalRect.size.height));
                 subview.frame = CGRectOffset(subview.bounds, accumX-subview.bounds.size.width,orignalRect.origin.y);
@@ -224,6 +244,7 @@
     layoutBounds = CGRectZero;
     for(UIView* subview in self.subviews)
     {
+         if([_excludedViews containsObject:subview]) continue;
         NSValue* rectValue = [originalViewRects objectForKey:[NSValue valueWithNonretainedObject:subview]];
         if(rectValue)
         {
@@ -273,6 +294,7 @@
         NSMutableArray* originalHiddenState = [NSMutableArray array];
         for(UIView* subview in self.subviews)
         {
+             if([_excludedViews containsObject:subview]) continue;
             [originalHiddenState addObject:[NSNumber numberWithBool:subview.hidden]];
             CGRect subFrame = subview.frame;
             CGRect intersection = CGRectIntersection(subFrame, self.bounds);

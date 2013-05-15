@@ -13,6 +13,8 @@
 //create or reuse a view from cache..
 +(id)dequeueInstanceFormNib:(NSString*)nibName;
 
++(void)memoryWarning;
+
 //replace the current instance with a new instance contained in a nib.
 //the frame of the nib view will be set to the callers frame and added to the same point in the view tree (it replaces the caller view).
 //this can be used to "contain" nibs inside other nibs...

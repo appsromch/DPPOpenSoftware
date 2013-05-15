@@ -31,10 +31,11 @@ typedef enum {
 @interface DPPAlignView : UIView
 
 @property(nonatomic,assign) AlignViewMode alignMode;
-@property(nonatomic,assign) float gap;
+@property(nonatomic,assign) NSNumber* itemGap;
 @property(nonatomic,assign) BOOL hideClippedViews;
 @property(nonatomic,readonly) CGRect layoutBounds;
 @property(nonatomic, weak) IBOutlet id<DPPAlignViewDelegate> delegate;
+@property(nonatomic,strong) IBOutletCollection(UIView) NSArray* excludedViews;
 
 -(void)saveOriginalRects;
 -(void)resetOriginalRects;

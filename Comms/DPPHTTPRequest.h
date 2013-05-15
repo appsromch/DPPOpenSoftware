@@ -28,9 +28,9 @@
 #define kHTTPStatusCodeSeverError 500
 
 
-#define kDefaultNetworkQueueMaxConcurrent 2
-#define kLowPriorityNetworkQueueMaxConcurrent 3
-#define kMaxLowPriorityItems 10
+#define kDefaultNetworkQueueMaxConcurrent 5
+#define kLowPriorityNetworkQueueMaxConcurrent 5
+#define kMaxLowPriorityItems 20
 
 #define kDefaultQueueStartupExclusiveTime 0.5
 #define kNormalQOSRating 0.5 //must be above this to be OK
@@ -111,6 +111,7 @@ typedef enum {
 @property(nonatomic,readonly) float progress;
 @property(nonatomic,assign) BOOL cached;
 @property(nonatomic,strong) NSMutableDictionary* headerValues;
+@property(nonatomic,readonly) NSArray* dependencies;
 
 @property(nonatomic,copy) void(^willRecieveResponseBlock)(DPPHTTPRequest*);
 @property(nonatomic,copy) void(^didRecieveResponseBlock)(DPPHTTPRequest*);
@@ -118,23 +119,42 @@ typedef enum {
 @property(nonatomic,copy) void(^didRecieveProgressBlock)(DPPHTTPRequest*);
 @property(nonatomic,copy) void(^networkQOSDidTimeout)(DPPHTTPRequest*);
 
-@property(nonatomic,copy) void(^willRecieveResponseBlockOnBackground)(DPPHTTPRequest*);
 @property(nonatomic,copy) void(^didRecieveResponseBlockOnBackground)(DPPHTTPRequest*);
 @property(nonatomic,copy) void(^didRecieveResponseBlockOnBackgroundCompletion)(DPPHTTPRequest*);
-@property(nonatomic,copy) void(^didFailToRecieveResponseBlockOnBackground)(DPPHTTPRequest*,NSError* error);
+
+
++(DPPHTTPRequest*)httpRequestWithURL:(NSURL*)url method:(NSString*)method;
 
 +(DPPHTTPRequest*)httpGETRequestWithURL:(NSURL*)url;
+
++(id)httpRequestWithURL:(NSURL*)url
+                 method:(NSString*)httpMethod
+                 onSuccess:(void(^)(DPPHTTPRequest*))success
+                 onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure;
+
++(id)httpGETRequestWithURL:(NSURL*)url
+                 onSuccess:(DPPHTTPResponseBlockType)success
+                 onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure;
+
 +(DPPHTTPRequest*)httpGETRequestWithURL:(NSURL*)url
-                   responseInBackground:(DPPHTTPResponseBlockType)background
-                             completion:(DPPHTTPResponseBlockType)completion;
+                   responseInBackground:(void(^)(DPPHTTPRequest*))background
+                             completion:(void(^)(DPPHTTPRequest*))completion;
 
 +(DPPHTTPRequest*)httpHEADERRequestWithURL:(NSURL*)url;
+
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postData:(NSData*)postData
                          withContentType:(NSString*)contentType
-                    responseInBackground:(DPPHTTPResponseBlockType)background
-                              completion:(DPPHTTPResponseBlockType)completion;
+                    responseInBackground:(void(^)(DPPHTTPRequest*))background
+                              completion:(void(^)(DPPHTTPRequest*))completion;
+
++(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url
+                                postData:(NSData*)postData
+                         withContentType:(NSString*)contentType
+                               onSuccess:(void(^)(DPPHTTPRequest*))success
+                               onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure;
+
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postData:(NSData*)postData withContentType:(NSString*)contentType;
-+(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postStream:(NSInputStream*)inputStream withContentType:(NSString*)contentType;
++(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postStream:(NSInputStream*)inputStream withContentType:(NSString*)contentType contentLength:(NSInteger)length;
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postFile:(NSURL*)inputFile withContentType:(NSString*)contentType;
 +(DPPHTTPRequest*)httpPUTRequestWithURL:(NSURL*)url putData:(NSData*)postData withContentType:(NSString*)contentType;
 +(DPPHTTPRequest*)httpPUTRequestWithURL:(NSURL*)url putStream:(NSInputStream*)inputStream withContentType:(NSString*)contentType;
@@ -142,14 +162,21 @@ typedef enum {
 +(DPPHTTPRequest*)httpPUTFormFile:(NSURL*)url putData:(NSData*)data forFormField:(NSString*)formField;
 +(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType;
 +(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
-                     responseInBackground:(DPPHTTPResponseBlockType)background
-                               completion:(DPPHTTPResponseBlockType)completion;
-+(DPPHTTPRequest*)httpRequestWithURL:(NSURL*)url method:(NSString*)method;
+                     responseInBackground:(void(^)(DPPHTTPRequest*))background
+                               completion:(void(^)(DPPHTTPRequest*))completion;
+
+
+
++(DPPHTTPRequest*)findRequestWithURL:(NSURL*)url;
 
 -(DPPHTTPRequest*)initWithRequest:(NSMutableURLRequest*)newRequest;
 -(DPPHTTPRequest*)initWithURL:(NSURL*)url;
 
 +(BOOL)isOfflineError:(NSError *)error;
+
+//LH cancel all operation in the default queues, including the lowPriority queue....
++(void)cancelQueue;
++(void)cancelQueue:(NSOperationQueue*)queue;
 
 -(void)cancel;
 -(void)start;
@@ -158,6 +185,7 @@ typedef enum {
 
 +(NSOperationQueue*)defaultNetworkQueue; //LH main data queue (use for data i.e json/xml)
 +(NSOperationQueue*)lowPriorityNetworkQueue; //LH this queue will be suspended in low bandwidth conditions and may even cancel operations (use for images)
+
 +(void)setDefaultNetworkQueue:(NSOperationQueue*)operationQueue;
 +(void)setLowPriorityNetworkQueue:(NSOperationQueue*)operationQueue;
 
@@ -167,9 +195,17 @@ typedef enum {
 +(void)suspendLowPriority:(BOOL)suspend; //suspend/resume the low priority queue
 +(void)suspendLowPriority:(BOOL)suspend cancelOperations:(BOOL)cancel; //same as above but also cancel all operation in the queue
 
--(void)enqueue; //add the request to the default queue
--(void)enqueueWithPriority:(NSOperationQueuePriority)priority; //add the request to the default queue with a priority
--(void)enqueueInOperationQueue:(NSOperationQueue*)queue withPriority:(NSOperationQueuePriority)priority;
+-(NSOperation*)enqueue; //add the request to the default queue
+-(NSOperation*)enqueueWithPriority:(NSOperationQueuePriority)priority; //add the request to the default queue with a priority
+-(NSOperation*)enqueueInOperationQueue:(NSOperationQueue*)queue withPriority:(NSOperationQueuePriority)priority;
+-(NSOperation*)createOperation;
+
+#warning LH dependencies untested for now.....
+//LH add dependent requests, supports trees.. 
+-(void)addDependencies:(NSArray*)requests;
+-(void)addDependency:(DPPHTTPRequest*)dependant;
+-(void)removeDependencies:(NSArray*)objects;
+-(void)removeDependency:(DPPHTTPRequest*)request;
 
 -(void)waitUntilDone;
 

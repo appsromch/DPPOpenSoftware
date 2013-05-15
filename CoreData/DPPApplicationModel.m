@@ -16,7 +16,13 @@
 #define EnsureCorrectContextThreadUsage(model) NSAssert((model == [DPPApplicationModel sharedInstance] && [NSThread currentThread] == [NSThread mainThread]) || (model != [DPPApplicationModel sharedInstance] && [NSThread currentThread] != [NSThread mainThread]),@"Incorrect thread usage")
 
 @interface DPPApplicationModel()
+{
+    
+}
 
+@property(nonatomic,assign) BOOL backgroundHasSaved; //LH used by background contexts to ensure they only save once
+@property(nonatomic,assign) BOOL shouldWait;
+@property(nonatomic,strong) NSCondition* mergeWait;
 @property(nonatomic,strong) NSMutableDictionary* observersForObjects;
 
 @property(nonatomic,retain) NSMutableSet* recycleBin;
@@ -26,6 +32,8 @@
 -(void)mergeContextWhenReady:(NSNotification*)contextDidSaveNotification; //the main context will only update when ready to...
 
 -(void)mergeContext:(NSNotification*)contextReadyToSaveNotification;
+
+
 @end
 
 
@@ -54,21 +62,19 @@ static NSUInteger backgroundInstanceCount=0;
 +(DPPApplicationModel*)sharedInstance
 {
     static DPPApplicationModel* shared = nil;
-    @synchronized(self)
-    {
-        if(shared==nil)
-        {
-            shared = [[DPPApplicationModel alloc] initMain];
-            
-            
-            //only the main context observes this....
-            [[NSNotificationCenter defaultCenter] addObserver:shared
-                                                     selector:@selector(mergeContext:)
-                                                         name:kContextReadyToSaveNotificationName
-                                                       object:shared];
-            
-        }
-    }
+    static dispatch_once_t onceToken;
+    
+    dispatch_once(&onceToken, ^{
+        shared = [[DPPApplicationModel alloc] initMain];
+        
+        
+        //only the main context observes this....
+        [[NSNotificationCenter defaultCenter] addObserver:shared
+                                                 selector:@selector(mergeContext:)
+                                                     name:kContextReadyToSaveNotificationName
+                                                   object:shared];
+    });
+
     return shared;
 }
 
@@ -85,13 +91,62 @@ static NSUInteger backgroundInstanceCount=0;
     NSAssert([NSThread currentThread] != [NSThread mainThread],@"This function must be called on a background thread!");
     DPPApplicationModel* backgroundInstance = [DPPApplicationModel instance];
     
+    
+        
     @synchronized(self)
     {
         backgroundInstanceCount++;
     }
-    
+    NSLog(@"background models %d",backgroundInstanceCount);
+    //NSLog(@"DPPApplicationModel::background instance state...\n %@",[NSThread callStackSymbols]);
+
     backgroundInstance.background = YES;
     return ARC_AUTORELEASE(backgroundInstance);
+}
+
++(dispatch_queue_t)defaultDispatchQueue
+{
+    static dispatch_queue_t defaultQueue = nil;
+    @synchronized(self)
+    {
+        if(defaultQueue == nil)
+        {
+            defaultQueue = dispatch_queue_create("com.depthperpixel.DPPApplicationModel", 0);
+        }
+    }
+    return defaultQueue;
+}
+
++(void)updateInBackground:(void (^)(DPPApplicationModel* model))updates completion:(void (^)(void))completion
+{
+    dispatch_async([self defaultDispatchQueue], ^()
+                   {
+                     if(updates)
+                     {
+                         DPPApplicationModel* backgroundInstance = [self backgroundInstance];
+                         
+                         updates(backgroundInstance);
+                         
+                         if([backgroundInstance.managedObjectContext hasChanges])
+                         { //complete when merged to main.....
+                             if(completion)
+                            {
+                                [backgroundInstance addMergeCompletion:completion];
+                            }
+                         
+                             [backgroundInstance saveContext];
+                         }
+                         else
+                         {//no merge so complete...
+                             if(completion)
+                             {
+                                  dispatch_async(dispatch_get_main_queue(), ^{
+                                      completion();
+                                  });
+                             }
+                         }
+                     }
+                   });
 }
 
 #pragma mark - Core Data stack
@@ -162,17 +217,29 @@ static NSUInteger backgroundInstanceCount=0;
     return [[[NSFileManager defaultManager] URLsForDirectory:NSLibraryDirectory inDomains:NSUserDomainMask] lastObject];
 }
 
+-(void)resetDatabaseFromBundle
+{
+    NSAssert(self == [DPPApplicationModel sharedInstance],@"This must be called on main context");
+    [self waitForBackgroundContexts]; //makesure there are no background contexts pending...
+    [[NSFileManager defaultManager] removeItemAtURL:_storeURL error:nil];
+    [self restoreDatabaseFromBundle];
+}
+
 -(void)restoreDatabaseFromBundle
 {
     if (![[NSFileManager defaultManager] fileExistsAtPath:_storeURL.path])
     {
+        [self waitForBackgroundContexts]; //makesure there are no background contexts pending...
 		NSString *bundledStorePath = [[NSBundle mainBundle] pathForResource:storeFile ofType:nil];
 		if (bundledStorePath)
         {
             NSLog(@"Restored from Prepopulated database.....");
 			[[NSFileManager defaultManager] copyItemAtPath:bundledStorePath toPath:_storeURL.path error:NULL];
 		}
+        __managedObjectContext = nil;
+        __persistentStoreCoordinator = nil;
 	}
+   
 }
 // Returns the persistent store coordinator for the application.
 // If the coordinator doesn't already exist, it is created and the application's store added to it.
@@ -219,30 +286,37 @@ static NSUInteger backgroundInstanceCount=0;
         NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
         
         //Simple remove the old data......
-        [[NSFileManager defaultManager] removeItemAtURL:_storeURL error:nil];
-        [self restoreDatabaseFromBundle];
-        [__persistentStoreCoordinator addPersistentStoreWithType:NSSQLiteStoreType configuration:nil URL:_storeURL options:options error:&error];
-    }    
+        [self resetDatabaseFromBundle];
+        if([self persistentStoreCoordinator] == nil)
+        {
+            NSLog(@"Unable to recover from core data store error!!!!");
+        }
+    }
     
     return __persistentStoreCoordinator;
 }
 
 - (void)saveContext
 {
-   // EnsureCorrectContextThreadUsage(self);
-    NSManagedObjectContext *managedObjectContext = self.managedObjectContext;
+    EnsureCorrectContextThreadUsage(self);
+    NSManagedObjectContext *managedObjectContext = __managedObjectContext;
     
-    if (managedObjectContext != nil) {
-       
-        NSSet* updatedObjects = [managedObjectContext.updatedObjects copy];
-        NSSet* deletedObjects = [managedObjectContext.deletedObjects copy];
+    if (managedObjectContext != nil)
+    {
+        if(self != [DPPApplicationModel sharedInstance])
+        {
+            NSAssert(!_backgroundHasSaved,@"DPPApplicationModel Background contexts can only save once......");
+        }
+        
                 if ([managedObjectContext hasChanges])
                 {
-                      NSError *error = nil;
+                    NSSet* updatedObjects = [managedObjectContext.updatedObjects copy];
+                    NSSet* deletedObjects = [managedObjectContext.deletedObjects copy];
                     [self notifyObserversOfChanges:updatedObjects
                                          deletions:deletedObjects
                                      aboutToChange:YES];//LH  update observers on changes in the same context when saved will be on background threads if not main context
-                    if([managedObjectContext save:&error])
+                    NSError* error = [self saveAndWaitForMainContextMerge];
+                    if(error ==nil)
                     {
                         [self notifyObserversOfChanges:updatedObjects
                                              deletions:deletedObjects
@@ -254,7 +328,7 @@ static NSUInteger backgroundInstanceCount=0;
                         // abort() causes the application to generate a crash log and terminate. You should not use this function in a shipping application, although it may be useful during development.
                         NSLog(@"Unresolved error %@, %@", error, [error userInfo]);
                     }
-        
+                    
                 }
     }
 }
@@ -269,6 +343,8 @@ static NSUInteger backgroundInstanceCount=0;
 
 -(void)mergeContext:(NSNotification*)contextReadyToSaveNotification
 {
+    //  NSLog(@"serving post merge");
+    EnsureCorrectContextThreadUsage([DPPApplicationModel sharedInstance]);
         NSNotification* changes = [contextReadyToSaveNotification.userInfo objectForKey:kContextDidSaveNotificationKey];
         if(changes.object != [DPPApplicationModel sharedInstance].managedObjectContext)
         {
@@ -279,6 +355,25 @@ static NSUInteger backgroundInstanceCount=0;
             [self notifyObserversOfChanges:updatedObjects deletions:deletedObjects aboutToChange:YES];
             [self.managedObjectContext mergeChangesFromContextDidSaveNotification:changes];
             [self notifyObserversOfChanges:updatedObjects deletions:deletedObjects aboutToChange:NO];
+           //  NSLog(@"merged post");
+           
+            @synchronized([DPPApplicationModel sharedInstance])
+            {
+                NSValue* contextValue = [NSValue valueWithNonretainedObject:changes.object];
+                NSArray* completionCalls = [_mergeCompletionList objectForKey:contextValue];
+                
+            //    NSLog(@"Calling %d merge completions",completionCalls.count);
+                
+                for(NSBlockOperation* mergeCompletion in completionCalls)
+                {
+                    if(mergeCompletion)
+                    {//LH add the operation to be executed after the merge, all changes will be present in the main context....
+                        //[[NSOperationQueue mainQueue] addOperation:mergeCompletion];
+                        [mergeCompletion main];
+                    }
+                }
+                [_mergeCompletionList removeObjectForKey:contextValue];
+            }
             
             //empty the bin and delete the objects
             if(recycleBin.count > 0)
@@ -294,47 +389,52 @@ static NSUInteger backgroundInstanceCount=0;
                     }
                     [recycleBin removeAllObjects];
                 }
-                [[DPPApplicationModel sharedInstance] saveContext];
-            }
-            
-            @synchronized([DPPApplicationModel sharedInstance])
-            {
-                NSValue* contextValue = [NSValue valueWithNonretainedObject:changes.object];
-                NSBlockOperation* mergeCompletion = [_mergeCompletionList objectForKey:contextValue];
-                if(mergeCompletion)
-                {//LH add the operation to be executed after the merge, all changes will be present in the main context....
-                    [[NSOperationQueue mainQueue] addOperation:mergeCompletion];
-                }
-                [_mergeCompletionList removeObjectForKey:contextValue];
+                
+                //LH we dispatch on next run of the runloop here so that background models
+                //in main autorelease pool won't get notified of the changes just before they die
+                
+               // dispatch_async(dispatch_get_main_queue(),
+               // ^{
+                    [[DPPApplicationModel sharedInstance] saveContext];
+                //});
             }
         }
 }
 
 -(void)mergeContextWhenReady:(NSNotification*)contextDidSaveNotification
 {
-    if(__managedObjectContext !=nil) //only merge if we have a context!!
+    if(__managedObjectContext !=nil) //only merge if we have a context!! no context means we've made no changes
     {
         if (((NSManagedObjectContext *)contextDidSaveNotification.object).persistentStoreCoordinator == [self persistentStoreCoordinator]) {
             //We only care about this if the context that was saved shares our persistentStoreCoordinator,
             //otherwise the context probably belongs to some library (Google Analytics, for example)
             if(contextDidSaveNotification.object != self.managedObjectContext)
             { //we didn't do the saving so we must merge changes.....
-                if(self.managedObjectContext == [DPPApplicationModel sharedInstance].managedObjectContext)
-                {//we are the foreground main context don't just update, wait until user has stopped interacting
-
-                   
+                if(__managedObjectContext == [DPPApplicationModel sharedInstance].managedObjectContext)
+                {
+                    //we are the foreground main context don't just update, wait until user has stopped interacting
+                    //this stops the background threads dictating when long merges happen.
+                    //allows us to 'hide' the merge at points when the GUI is static so they don't notice...
+                  //  NSLog(@"posting merge");
                         [self postMainContextUpdate:contextDidSaveNotification];
                     
                  
                 }
                 else 
-                {//something was saved and we're not the main context so just merge the changes
+                {
+                    //something was saved and we're not the main context and it wasn't us who saved....
+                    //so just merge the changes
+                    
+                    //this would be either background models sending each other their changes OR
+                    //the main context sending changes to background threads...
+                    
                     NSDictionary* userInfo = contextDidSaveNotification.userInfo;
                     NSSet *updatedObjects = [userInfo objectForKey:NSUpdatedObjectsKey];
                     NSSet *deletedObjects = [userInfo objectForKey:NSDeletedObjectsKey];
                      [self notifyObserversOfChanges:updatedObjects deletions:deletedObjects aboutToChange:YES];
                     [self.managedObjectContext mergeChangesFromContextDidSaveNotification:contextDidSaveNotification];
                     [self notifyObserversOfChanges:updatedObjects deletions:deletedObjects aboutToChange:NO];
+                   //  NSLog(@"merged context direct (%@) %@",__managedObjectContext,contextDidSaveNotification);
                 }
             }
         }
@@ -464,6 +564,16 @@ static NSUInteger backgroundInstanceCount=0;
     return managedObject;
 }
 
+-(NSManagedObject*)fetchOrInsertEntityOfClass:(Class)entityClass
+                        withUniqueAttribute:(NSString *)attributeName
+                                    withValue:(id)valueObject
+{
+    return [self fetchOrInsertEntityNamed:NSStringFromClass(entityClass)
+                                  ofClass:entityClass
+                      withUniqueAttribute:attributeName
+                                withValue:valueObject];
+}
+
 -(NSManagedObject*)fetchOrInsertEntityNamed:(NSString *)entityName ofClass:(Class)entityClass
                         withUniqueAttribute:(NSString *)attributeName withValue:(id)valueObject
 {
@@ -511,7 +621,7 @@ static NSUInteger backgroundInstanceCount=0;
 {
     if(object==nil || observer==nil) return;
     NSMutableOrderedSet* observerList = [self.observersForObjects objectForKey:object.objectID];
-    [observerList removeObject:observer];
+    [observerList removeObject:[WeakReference weakReferenceWithObject:observer]];
 }
 
 -(void)removeObserver:(id<DPPApplicationObjectChangesDelegate>)observer
@@ -520,8 +630,16 @@ static NSUInteger backgroundInstanceCount=0;
     for(NSManagedObjectID* objectID in self.observersForObjects.allKeys)
     {
         NSMutableOrderedSet* observerList = [self.observersForObjects objectForKey:objectID];
-        [observerList removeObject:[WeakReference weakReferenceWithObject:observer]];
+        for(WeakReference* weakObject in  observerList)
+        {
+            if(weakObject.nonretainedObjectValue == observer)
+            {
+                [observerList removeObject:weakObject];
+                break;
+            }
+        }
     }
+   
 }
 
 -(void)notifyObserversOfChanges:(NSSet*)updatedObjects deletions:(NSSet*)deletedObjects aboutToChange:(BOOL)aboutTo
@@ -538,7 +656,7 @@ static NSUInteger backgroundInstanceCount=0;
         
         if([deletedObjectIDs containsObject:objectID])
         {
-            NSArray *observerArray = [observerList copy];
+            NSOrderedSet *observerArray = [observerList copy];
             for(WeakReference* observeRef in observerArray)
             {
                 if(observeRef.nonretainedObjectValue)
@@ -568,7 +686,7 @@ static NSUInteger backgroundInstanceCount=0;
         }
         else if([updatedObjectIDs containsObject:objectID])
         {
-            NSArray *observerArray = [observerList copy];
+            NSOrderedSet *observerArray = [observerList copy];
            for(WeakReference* observeRef in observerArray)
            {
                if(observeRef.nonretainedObjectValue)
@@ -634,34 +752,122 @@ static NSUInteger backgroundInstanceCount=0;
     }while(!complete);
 }
 
--(void)addMergeCompletion:(void (^)(void))completion
+-(BOOL)addMergeCompletion:(void (^)(void))completion
 {
-    if(__managedObjectContext == nil) return;
-    
+    if(__managedObjectContext == nil) return NO;
+    BOOL added = NO;
     if(__managedObjectContext != [DPPApplicationModel sharedInstance].managedObjectContext)
     {
-        [[DPPApplicationModel sharedInstance] addMergeCompletion:completion forContext:__managedObjectContext];
+        added = [[DPPApplicationModel sharedInstance] addMergeCompletion:completion forContext:__managedObjectContext];
     }
     else
     {
         NSLog(@"Added merge completion block on main context?");
     }
+    return added;
 }
 
--(void)addMergeCompletion:(void (^)(void))completion forContext:(NSManagedObjectContext*)context
+-(BOOL)addMergeCompletion:(void (^)(void))completion forContext:(NSManagedObjectContext*)context
 {
-    if(context == nil || completion ==nil) return;
+    if(context == nil || completion ==nil) return NO;
     @synchronized(self)
     {
         NSBlockOperation* completionOperation = [NSBlockOperation blockOperationWithBlock:completion];
-        [_mergeCompletionList setObject:completionOperation forKey:[NSValue valueWithNonretainedObject:context]];
+        
+        NSMutableArray* completionCalls = [_mergeCompletionList objectForKey:[NSValue valueWithNonretainedObject:context]];
+        
+        if(completionCalls == nil)
+        {
+            completionCalls = [NSMutableArray array];
+            [_mergeCompletionList setObject:completionCalls forKey:[NSValue valueWithNonretainedObject:context]];
+        }
+        
+        [completionCalls addObject:completionOperation];
     }
+    return YES;
+}
+
+-(NSError*)saveAndWaitForMainContextMerge
+{
+    NSError* saveError=nil;
+    if(self != [DPPApplicationModel sharedInstance])
+    {
+       
+        NSAssert(self != [DPPApplicationModel sharedInstance],@"The main shared context does not need to wait for a merge!");
+        
+        @synchronized(self)
+        {
+            if(_mergeWait == nil)
+            {
+                _mergeWait = [[NSCondition alloc] init];
+            }
+        }
+         [_mergeWait lock];
+            __weak DPPApplicationModel* weakSelf = self;
+            _shouldWait =YES;
+            
+            BOOL addedCompletion = [self addMergeCompletion:^()
+            {
+                // NSLog(@"running merge completion block");
+                if(weakSelf == nil)
+                {
+                    //NSLog(@"model nil!!!!");
+                }
+                
+                [weakSelf.mergeWait lock];
+                weakSelf.shouldWait = NO;
+                [weakSelf.mergeWait broadcast]; //unlock the waiting threads....
+                [weakSelf.mergeWait unlock];
+            }];
+        
+            if(addedCompletion) //if we didn't add completion it means theres nothing to merge
+            {
+               // NSLog(@"waiting for merge");
+              //  NSLog(@"waiting for main context merge.\n with changes Updated \n%@ deleted %@ \n inserted %@", __managedObjectContext.updatedObjects, __managedObjectContext.deletedObjects,__managedObjectContext.insertedObjects);
+                NSDate* startMerge = [NSDate date];
+                if([__managedObjectContext save:&saveError])
+                {
+                    while (_shouldWait)
+                    {
+                        [_mergeWait wait];
+                       // [_mergeWait waitUntilDate:[[NSDate date] dateByAddingTimeInterval:0.01]];
+                       // [[NSRunLoop currentRunLoop] runUntilDate:[[NSDate date] dateByAddingTimeInterval:0.1]];
+                    }
+                     NSLog(@"Merge complete (%fs)...",[[NSDate date] timeIntervalSinceDate:startMerge]);
+                }
+                else
+                {
+                     NSLog(@"Save failed! %@ (%fs)...",saveError,[[NSDate date] timeIntervalSinceDate:startMerge]);
+                }
+                //do not care about merging anymore, this will prevent merging when not needed....
+                [[NSNotificationCenter defaultCenter] removeObserver:self name:NSManagedObjectContextDidSaveNotification object:nil];
+            }
+            else
+            {
+                NSLog(@"unable to add merge completion");
+            }
+        [_mergeWait unlock];
+    }
+    else
+    {
+        [self.managedObjectContext save:&saveError];
+    }
+    return saveError;
 }
 
 -(void)dealloc
 {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [self saveContext];
+    [[NSNotificationCenter defaultCenter] removeObserver:self]; //LH this needs to be called after saveContext here else when saving it will reregister with notification centre...
+ 
+    if([__managedObjectContext hasChanges])
+    {
+        NSLog(@"DPPApplicationModel:: context is dealloc'd with changes!! They will be lost!!!!! Have you forgot to save context? \n with changes Updated \n%@ deleted %@ \n inserted %@", __managedObjectContext.updatedObjects, __managedObjectContext.deletedObjects,__managedObjectContext.insertedObjects);
+    }
+    else
+    {
+        // NSLog(@"dealloc'd model without changes");
+    }
+    
     
     if(background)
     {
