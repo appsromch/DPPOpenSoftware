@@ -7,11 +7,12 @@
 
 @interface DPPHTTPResponse : NSObject
 
-@property(nonatomic,retain)     NSHTTPURLResponse*  header;
-@property(nonatomic,retain)     NSData*             body;
+@property(nonatomic,strong)     NSHTTPURLResponse*  header;
+@property(nonatomic,strong)     NSData*             body;
 @property(nonatomic,readonly)   NSString*           bodyString;
-@property(nonatomic,retain)     NSInputStream*      bodyStream;
-@property(nonatomic,retain)     id                  processedBody;
-@property(nonatomic,assign)     BOOL isValid;
+@property(nonatomic,strong)     NSInputStream*      bodyStream;
+@property(nonatomic,strong)     id                  processedBody;
+@property(nonatomic,assign)     BOOL                isValid;
+@property(nonatomic,strong)     NSError*            error;          //can store parsing errors etc eher... 
 
 @end

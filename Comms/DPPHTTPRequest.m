@@ -7,15 +7,19 @@
 #import "DPPHTTPResponse.h"
 #import "DPPStreamBuffer.h"
 #import <SystemConfiguration/SCNetworkReachability.h>
+#import "mach/mach.h"
 
 NSString *const kDPPHTTPRequestQOSRatingDidChange = @"DPPHTTPRequestQOSRatingDidChange";
 NSString *const kDPPHTTPRequestNetworkStatusDidChange = @"DPPHTTPRequestNetworkStatusDidChange";
 
 static NSOperationQueue* lowPriorityNetworkQueue = nil;
 static NSOperationQueue* defaultQueue = nil;
+//static NSOperationQueue* cachedNetworkQueue=nil;
 
 @interface DPPHTTPRequest()
-
+{
+    NSArray* _debugCreatedCallstack;
+}
 @property(nonatomic,strong) NSURLConnection* internalConnection;
 @property(nonatomic,strong) NSMutableData* internalData;
 @property(nonatomic,strong) NSMutableURLRequest* internalRequest;
@@ -28,7 +32,6 @@ static NSOperationQueue* defaultQueue = nil;
 @property(nonatomic,strong) NSDate* responseDate;
 @property(nonatomic,strong) NSDate* transferDate;
 @property(nonatomic,strong) NSDate* startUploadDate;
-@property(nonatomic,strong) NSDate* downloadDate;
 @property(nonatomic,strong) NSDate* completionDate;
 @property(nonatomic,assign) BOOL isUploadRequest;
 @property(nonatomic,strong) NSTimer* networkQOSTimer;
@@ -40,10 +43,13 @@ static NSOperationQueue* defaultQueue = nil;
 
 @end
 
-static NSDate* lowPrioritySuspendedDate=nil;
 static NSDate* startupDate=nil;
-static NSDate* lastRequestDate=nil;
 static double transferRateAvrValue = kEdgeBandwidthMB;
+static NSMutableDictionary* allRequests = nil;
+static double transferedMB = 0;
+static BOOL _debugMode=NO;
+static NSURL* baseURL=nil;
+static SCNetworkReachabilityRef networkReachability=nil;
 
 @implementation DPPHTTPRequest
 
@@ -83,13 +89,33 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 {
     [super initialize];
     startupDate = [NSDate date];
+    allRequests = [NSMutableDictionary dictionary];
     [NSTimer scheduledTimerWithTimeInterval:1.0 target:[DPPHTTPRequest class] selector:@selector(watchdogTick) userInfo:nil repeats:YES];
+     if(baseURL ==nil) baseURL = [NSURL URLWithString:@"http://www.google.com"];
+    [self startMonitoringNetworkReachability];
 }
 
++(void)setBaseURL:(NSURL*)url
+{
+    baseURL = url;
+}
+
++(NSUInteger)requestCount
+{
+    return allRequests.count;
+}
+
++(void)setupCacheWithMemorySizeMB:(float)memorySize diskSizeMB:(float)diskSize
+{
+    float cacheSizeMemory = memorySize*1024*1024; 
+    float cacheSizeDisk = diskSize*1024*1024;
+    NSURLCache *sharedCache = [[NSURLCache alloc] initWithMemoryCapacity:(int)cacheSizeMemory diskCapacity:(int)cacheSizeDisk diskPath:@"nsurlcache"];
+    [NSURLCache setSharedURLCache:sharedCache];
+}
 
 +(id)httpGETRequestWithURL:(NSURL*)url
-                onSuccess:(void(^)(DPPHTTPRequest*))success
-                onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure
+                onSuccess:(void(^)(DPPHTTPRequest* request))success
+                onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpGETRequestWithURL:url];
     newRequest.didRecieveResponseBlock = success;
@@ -98,8 +124,8 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 }
 
 +(id)httpGETRequestWithURL:(NSURL*)url
-      responseInBackground:(void(^)(DPPHTTPRequest*))background
-                completion:(void(^)(DPPHTTPRequest*))completion
+      responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                completion:(void(^)(DPPHTTPRequest* request))completion
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpGETRequestWithURL:url];
     newRequest.didRecieveResponseBlockOnBackground = background;
@@ -112,10 +138,17 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     return [DPPHTTPRequest httpRequestWithURL:url method:kHTTP_GET_METHOD_STRING];
 }
 
-+(id)httpGETRequestWithURL:(NSURL*)url
++(id)httpRequestWithURL:(NSURL*)url method:(NSString*)method
+{
+    DPPHTTPRequest* newRequest = [[DPPHTTPRequest alloc] initWithURL:url];
+    newRequest.internalRequest.HTTPMethod = method;
+    return newRequest;
+}
+
++(id)httpRequestWithURL:(NSURL*)url
                     method:(NSString*)httpMethod
-                 onSuccess:(void(^)(DPPHTTPRequest*))success
-                 onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure
+                 onSuccess:(void(^)(DPPHTTPRequest* request))success
+                 onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpRequestWithURL:url method:httpMethod];
     newRequest.didRecieveResponseBlock = success;
@@ -123,17 +156,11 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     return newRequest;
 }
 
-+(DPPHTTPRequest*)httpRequestWithURL:(NSURL*)url method:(NSString*)method
-{
-    NSMutableURLRequest* newRequest = [NSMutableURLRequest requestWithURL:url];
-    [newRequest setHTTPMethod:method];
-    return [[DPPHTTPRequest alloc] initWithRequest:newRequest];
-}
 
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postData:(NSData*)postData
                          withContentType:(NSString*)contentType
-                    responseInBackground:(void(^)(DPPHTTPRequest*))background
-                              completion:(void(^)(DPPHTTPRequest*))completion
+                    responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                              completion:(void(^)(DPPHTTPRequest* request))completion
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpPOSTRequestWithURL:url postData:postData withContentType:contentType];
     newRequest.didRecieveResponseBlockOnBackground = background;
@@ -144,7 +171,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url
                                 postData:(NSData*)postData
                          withContentType:(NSString*)contentType
-                               onSuccess:(void(^)(DPPHTTPRequest*))success
+                               onSuccess:(void(^)(DPPHTTPRequest* request))success
                                onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpPOSTRequestWithURL:url postData:postData withContentType:contentType];
@@ -251,12 +278,22 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 }
 
 +(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
-                     responseInBackground:(void(^)(DPPHTTPRequest*))background
-                               completion:(void(^)(DPPHTTPRequest*))completion
+                     responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                               completion:(void(^)(DPPHTTPRequest* request))completion
 {
     DPPHTTPRequest* newRequest = [DPPHTTPRequest httpPATCHRequestWithURL:url patchData:patchData withContentType:contentType];
     newRequest.didRecieveResponseBlockOnBackground = background;
     newRequest.didRecieveResponseBlockOnBackgroundCompletion = completion;
+    return newRequest;
+}
+
++(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
+                                onSuccess:(void(^)(DPPHTTPRequest* request))success
+                                onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure
+{
+    DPPHTTPRequest* newRequest = [DPPHTTPRequest httpPATCHRequestWithURL:url patchData:patchData withContentType:contentType];
+    newRequest.didRecieveResponseBlock = success;
+    newRequest.didFailToRecieveResponseBlock = failure;
     return newRequest;
 }
 
@@ -269,34 +306,40 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 +(DPPHTTPRequest*)findRequestWithURL:(NSURL*)url
 {
-    
-    return nil;
+    @synchronized(self)
+    {
+        return [allRequests objectForKey:url.absoluteString];
+    }
 }
 
 +(NSOperationQueue*)defaultNetworkQueue
 {
-    @synchronized(self)
-    {
-        if(defaultQueue ==nil)
-        {
-            defaultQueue = [[NSOperationQueue alloc] init];
-            [defaultQueue setMaxConcurrentOperationCount:kDefaultNetworkQueueMaxConcurrent];
-        }
-    }
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        defaultQueue = [[NSOperationQueue alloc] init];
+        [defaultQueue setMaxConcurrentOperationCount:kDefaultNetworkQueueMaxConcurrent];
+    });
     return defaultQueue;
 }
 
+/*+(NSOperationQueue*)cachedNetworkQueue
+{
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        cachedNetworkQueue = [[NSOperationQueue alloc] init];
+        [cachedNetworkQueue setMaxConcurrentOperationCount:kDefaultNetworkQueueMaxConcurrent];
+    });
+    return defaultQueue;
+}*/
+
 +(NSOperationQueue*)lowPriorityNetworkQueue
 {
-    @synchronized(self)
-    {
-        if(lowPriorityNetworkQueue ==nil)
-        {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
             lowPriorityNetworkQueue = [[NSOperationQueue alloc] init];
             [lowPriorityNetworkQueue setMaxConcurrentOperationCount:kLowPriorityNetworkQueueMaxConcurrent];
-            [lowPriorityNetworkQueue setSuspended:YES];
-        }
-    }
+            //[lowPriorityNetworkQueue setSuspended:YES];
+    });
     return lowPriorityNetworkQueue;
 }
 
@@ -316,16 +359,13 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     }
 }
 
-+(dispatch_queue_t)defaultDispatchQueue
++(dispatch_queue_t)defaultDispatchQueue //queue used for didrecieveresponse in background
 {
     static dispatch_queue_t defaultQueue = nil;
-    @synchronized(self)
-    {
-        if(defaultQueue == nil)
-        {
-            defaultQueue = dispatch_queue_create("com.depthperpixel.dpphttprequest", 0);
-        }
-    }
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+         defaultQueue = dispatch_queue_create("com.depthperpixel.dpphttprequest", DISPATCH_QUEUE_SERIAL);
+    });
     return defaultQueue;
 }
 
@@ -343,6 +383,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 +(void)cancelQueue
 {
+    
     [self suspendLowPriority:YES cancelOperations:YES];
     [self cancelQueue:[DPPHTTPRequest defaultNetworkQueue]];
     [self suspendLowPriority:NO];
@@ -350,6 +391,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 +(void)cancelQueue:(NSOperationQueue*)queue
 {
+    NSLog(@"DPPHTTPRequest Cancelled Queue");
     [queue setSuspended:YES];
     [queue cancelAllOperations];
     [queue setSuspended:NO];
@@ -365,7 +407,6 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     NSOperationQueue* lowPriorityQueue = [DPPHTTPRequest lowPriorityNetworkQueue];
     if(!lowPriorityQueue.isSuspended && suspend == YES)
     {//if we are moving to suspend, record the date so that we can unsuspend when default queue is idle..
-        lowPrioritySuspendedDate = [NSDate date];
         if(cancel)
         {
             [[self lowPriorityNetworkQueue] cancelAllOperations];
@@ -378,29 +419,47 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     }
 }
 
++(void)setDebugMode:(BOOL)debug
+{
+    _debugMode = debug;
+}
+
++(NSArray*)allRequests
+{
+    return [allRequests allValues];
+}
+
 -(DPPHTTPRequest*)initWithURL:(NSURL*)newUrl
 {
     NSAssert(newUrl!=nil,@"DPPHTTPRequest URL cannot be nil");
-    self = [super init];
-    if(self)
-    {
-        self.internalRequest = [NSMutableURLRequest requestWithURL:newUrl];
-        [self setState:DPPCreated];
-    }
-    return self;
+    return [self initWithRequest:[NSMutableURLRequest requestWithURL:newUrl]];
 }
 
 -(DPPHTTPRequest*)initWithRequest:(NSMutableURLRequest*)newRequest
 {
+     NSAssert(newRequest.URL!=nil,@"DPPHTTPRequest URL cannot be nil");
     self = [super init];
     if(self)
     {
+        if(_debugMode)
+        {
+            _debugCreatedCallstack = [NSThread callStackSymbols];
+        }
+        
         if(newRequest.HTTPBodyStream)
         {
             self.bodyInputStream = newRequest.HTTPBodyStream;
         }
         self.internalRequest = newRequest;
+        @synchronized(self)
+        {
+            [allRequests setValue:self forKey:newRequest.URL.absoluteString];
+        }
         [self setState:DPPCreated];
+        self.didFailToRecieveResponseBlock = ^(DPPHTTPRequest* blockRequest,NSError* error)
+        {
+            NSLog(@"DPPHTTPRequest::Failed %@ %@ \n Add a handling block to remove this log.",error,blockRequest);
+        };
     }
     return self;
 }
@@ -417,12 +476,17 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 -(NSOperation*)enqueueInOperationQueue:(NSOperationQueue*)queue withPriority:(NSOperationQueuePriority)priority
 {
-    if(self.inProgress)
-    {
-        NSLog(@"DPPHTTPRequest WARNING! In progress request being queued! /n%@",self);
-    }
     
     [self setState:DPPQueued];
+    
+    
+   /* if([[NSURLCache sharedURLCache] cachedResponseForRequest:self.internalRequest]!=nil)
+    { //do cache request right now.... as they are quick....
+        queue = [self.class cachedNetworkQueue];
+    
+    } //LH this was a bad idea as getting the cached response may lift it off disk using lots of memory
+    
+    */
     
     NSOperation* operation = [self createOperation];
     
@@ -436,7 +500,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
         {
             NSOperation* dependantOp = [dependantRequest enqueueInOperationQueue:queue withPriority:priority];
             [operation addDependency:dependantOp];
-            NSLog(@"DPPHTTPRequest adding dependant request %@ /nfor Request %@",dependantRequest,self);
+            NSLog(@"DPPHTTPRequest adding dependant request %@ \nfor Request %@",dependantRequest,self);
         }
     }
     
@@ -450,7 +514,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     __weak NSBlockOperation *weakOperation = operation;
     
     [operation addExecutionBlock:^(){
-        
+    @autoreleasepool {
         if(!self.cancelled)
         {
             BOOL dependentFailed = NO;
@@ -468,7 +532,6 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
             
             if(!dependentFailed)
             {
-            
                 UIApplication* app = [UIApplication sharedApplication];
                 app.networkActivityIndicatorVisible = YES;
                 
@@ -538,9 +601,26 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
                 }
             }
         }
+        else
+        {
+            [self cancel];
+            NSLog(@"cancelled before run..");
+        }
+        
+        
+    }
     }];
     
     return operation;
+}
+
+-(BOOL)containedInCache:(NSURLCache*)cache
+{
+    if(self.internalRequest)
+    {
+        return ([cache cachedResponseForRequest:self.internalRequest]!=nil);
+    }
+    return NO;
 }
 
 -(NSMutableOrderedSet*)dependants
@@ -592,9 +672,26 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 -(void)start
 {
+    if(_numberOfTries > 0) NSLog(@"retrying request...");
+    _numberOfTries++;
+    if(_debugMode)
+    {
+        if(self.didFailToRecieveResponseBlock == nil)
+        {
+            NSLog(@"DPPHTTPRRequest:: request not handling fail state %@",self);
+        }
+        if(self.didRecieveResponseBlock == nil && self.didRecieveResponseBlockOnBackground ==nil)
+        {
+             NSLog(@"DPPHTTPRRequest:: request has no handler %@",self);
+        }
+    }
+    
+    
+    
     [self prepareToStart];
         if(self.connectiontTimeoutInterval == 0) self.connectiontTimeoutInterval = 30.0; //LH default to 30.0 if not set
         self.internalRequest.timeoutInterval = self.connectiontTimeoutInterval;
+
         self.internalConnection = [[NSURLConnection alloc]
                                    initWithRequest:internalRequest
                                    delegate:self
@@ -613,19 +710,38 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     [self setState:DPPConnecting];
 }
 
+-(void)cancelIfNotInProgress
+{
+    if(self.state == DPPQueued)
+    {
+        [self cancel];
+    }
+}
+
 -(void)cancel
 {
+    if(self.completed) return;
+    if(_debugMode)
+    {
+        NSLog(@"Cancelled %@",self);
+    }
     [self.networkQOSTimer invalidate];
     self.completed = YES;
      cancelled =YES;
     [self.internalConnection cancel];
+    
     [self setState:DPPCancelled];
+    
+    __weak DPPHTTPRequest* weakSelf = self;
+     dispatch_async(dispatch_get_main_queue(),^{
+    if(weakSelf.didFailToRecieveResponseBlock)
+    {
+        weakSelf.didFailToRecieveResponseBlock(self,[NSError errorWithDomain:@"NSURLErrorDomain" code:kCFURLErrorCancelled userInfo:nil]);
+    }});
 }
 
 -(void)setState:(DPPRequestState)state
 {
-    @synchronized(self)
-    {
         if(_state !=state)
         {
             if(state == DPPQueued)
@@ -635,7 +751,6 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
             _state = state;
             [self sendProgressUpdate];
         }
-    }
 }
 
 -(NSString*)stateDescription
@@ -709,6 +824,10 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     completed = newCompleted;
     if(completed)
     {
+        @synchronized(self)
+        {
+            [allRequests removeObjectForKey:self.url.absoluteString];
+        }
         self.bodyInputStream=nil;
         inProgress = NO;
     }
@@ -734,12 +853,11 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 {
     _responseDate = [NSDate date];
      [self setState:DPPFailed];
-    
+    self.response = nil;
+    self.internalData = nil;
     dispatch_async(dispatch_get_main_queue(),^{
         if([delegate respondsToSelector:@selector(didFailToRecieveResponse:error:)])
         {
-            self.response = nil;
-            self.internalData = nil;
             [delegate didFailToRecieveResponse:self error:error];
         }
         
@@ -794,8 +912,8 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     
     self.response = newResponse;
     
-    NSURLCache *sharedCache = [NSURLCache sharedURLCache];
-    cached = ([sharedCache cachedResponseForRequest:internalRequest]!=nil);
+    //NSURLCache *sharedCache = [NSURLCache sharedURLCache];
+    //cached = ([sharedCache cachedResponseForRequest:internalRequest]!=nil);
     [self setState:DPPConnected];
     dispatch_async(dispatch_get_main_queue(),^{
         
@@ -815,10 +933,9 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 {
     if(internalConnection!= connection) return; //not ours??!!
     BOOL firstCall = (_transferBytes ==0);
-    @synchronized(self)
-    {
-        _transferBytes += data.length;
-    }
+
+    _transferBytes += data.length;
+    
     
     if(self.bodyStreamBufferSize>0)
     {
@@ -846,10 +963,9 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 {
     if(internalConnection!= connection) return; //not ours??!!
     progress = (float)totalBytesWritten / (float)totalBytesExpectedToWrite;
-    @synchronized(self)
-    {
-        _transferBytes +=bytesWritten;
-    }
+
+    _transferBytes +=bytesWritten;
+
     _isUploadRequest = YES;
     [self sendProgressUpdate];
 }
@@ -857,7 +973,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 -(void)sendProgressUpdate
 {
     dispatch_async(dispatch_get_main_queue(),^{
-        if(_debugMode)
+       /* if(_debugMode)
         {
             if(_state == DPPConnected)
             {
@@ -867,7 +983,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
             {
                 NSLog(@"Request update: %@ %@",self.url,[self stateDescription]);
             }
-        }
+        }*/
         if([delegate respondsToSelector:@selector(didRecieveProgress:)])
         {
             [delegate didRecieveProgress:self];
@@ -895,10 +1011,8 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     if(internalConnection!= connection) return; //not ours??!!
     _transferDate = [NSDate date];
     [self.networkQOSTimer invalidate];
-    @synchronized(self)
-    {
-        lastRequestDate = _transferDate;
-    }
+
+   
     self.response.isValid = YES;
     [self setState:DPPComplete];
     
@@ -915,7 +1029,9 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     if(!self.cancelled && _transferBytes > 0)
     {
         [DPPHTTPRequest addTransferRateToWeightedSum:[self requestTransferRateMBs]];
+        [DPPHTTPRequest addBytesTransfered:_transferBytes];
     }
+   // NSLog(@"completed request");
     dispatch_async(dispatch_get_main_queue(),^{
         if([delegate respondsToSelector:@selector(didRecieveResponse:)])
         {
@@ -929,7 +1045,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
         {
             dispatch_async([DPPHTTPRequest defaultDispatchQueue],
                            ^{
-                               @autoreleasepool {
+                               @autoreleasepool {  //LH this is to garantee any created objects are released right away, GCD may release after several ops
                                    if(self.didRecieveResponseBlockOnBackground)
                                    {
                                        self.didRecieveResponseBlockOnBackground(self);
@@ -952,7 +1068,7 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 -(void)clearCompletionCallbacks
 {
-    //LH clear all callback except background process......
+    //LH clear all callbacks except background process......
     self.delegate =nil;
     self.willRecieveResponseBlock = nil;
     self.didFailToRecieveResponseBlock =nil;
@@ -987,15 +1103,71 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     }
 }
 
+-(NSArray*)debugCreatedCallstack
+{
+    if(_debugMode)
+    {
+        return _debugCreatedCallstack;
+    }
+    else
+    {
+        return @[@"debug mode needed for output"];
+    }
+}
+
 -(NSString*)description
 {
-    NSString* requestDescription = [NSString stringWithFormat:@"\nDPPHTTPRequest\n\t %@ \n\t URL %@ \n\tHeader:\n %@ \n\t Response: \n\t(response status %d) \n %@",
+    int maxLength = 200;
+    NSString* trimedBody = [self.response.bodyString substringToIndex: MIN(maxLength, [self.response.bodyString length])];
+    if([self.response.bodyString length] >maxLength)
+    {
+        trimedBody = [NSString stringWithFormat:@"%@...", trimedBody];
+    }
+    NSString* requestDescription = [NSString stringWithFormat:@"\nDPPHTTPRequest (%@)\n\t %@ \n\t URL %@ \n\tHeader:\n %@ \n\t \n\t created bt: %@  \n Response: \n\t(response status %d) \n %@",
+                                    [self stateDescription],
                                     [DPPHTTPRequest networkQOSRatingDescription],
                                     self.url,
                                     self.headerValues,
+                                    self.debugCreatedCallstack,
                                     self.response.header.statusCode,
-                                    self.response.bodyString];
+                                    trimedBody];
     return requestDescription;
+}
+
+
+#pragma mark - start reachability
+static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void* info)
+{
+    NSLog(@"ReachabilityCallback");
+    [[NSNotificationCenter defaultCenter] postNotificationName:kDPPHTTPRequestNetworkStatusDidChange object:[DPPHTTPRequest class]];
+}
+
++(void)startMonitoringNetworkReachability {
+    [self stopMonitoringNetworkReachability];
+    @synchronized(self)
+    {
+        if (!baseURL) {
+            return;
+        }
+        
+        networkReachability = SCNetworkReachabilityCreateWithName(kCFAllocatorDefault, [[baseURL host] UTF8String]);
+        
+        if (!networkReachability) {
+            return;
+        }
+        
+        SCNetworkReachabilitySetCallback(networkReachability, ReachabilityCallback , nil);
+        
+        SCNetworkReachabilityScheduleWithRunLoop(networkReachability, CFRunLoopGetMain(), kCFRunLoopCommonModes);
+    }
+}
+
++(void)stopMonitoringNetworkReachability {
+    if (networkReachability) {
+        SCNetworkReachabilityUnscheduleFromRunLoop(networkReachability, CFRunLoopGetMain(), kCFRunLoopCommonModes);
+        CFRelease(networkReachability);
+        networkReachability = NULL;
+    }
 }
 
 +(BOOL)networkReachable
@@ -1005,109 +1177,89 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
 
 +(DPPHTTPRequestNetworkStatus)networkStatus
 {
-    static SCNetworkReachabilityRef reachRef = nil;
     @synchronized(self)
     {
-        if(reachRef ==nil)
+        SCNetworkReachabilityFlags flags;
+        
+        if(SCNetworkReachabilityGetFlags(networkReachability, &flags))
         {
-            reachRef = SCNetworkReachabilityCreateWithName(NULL, "www.google.com");
-        }
-    }
-    
-    SCNetworkReachabilityFlags flags;
-    
-    if(SCNetworkReachabilityGetFlags(reachRef, &flags))
-    {
-        if((flags & kSCNetworkReachabilityFlagsReachable))
-        {
-            if(flags & kSCNetworkReachabilityFlagsIsWWAN)
+            if((flags & kSCNetworkReachabilityFlagsReachable))
             {
-                 return DPPReachableViaWWAN;//3G
+                if(flags & kSCNetworkReachabilityFlagsIsWWAN)
+                {
+                     return DPPReachableViaWWAN;//3G
+                }
+                return DPPReachableViaWiFi;//WIFI
             }
-            return DPPReachableViaWiFi;//WIFI
-        }
-        if((flags & kSCNetworkFlagsReachable))
-        {
-            return DPPReachableViaWiFi;
+            if((flags & kSCNetworkFlagsReachable))
+            {
+                return DPPReachableViaWiFi;
+            }
         }
     }
     return DPPNotReachable;
 }
 
++(void) report_memory {
+    struct task_basic_info info;
+    mach_msg_type_number_t size = sizeof(info);
+    kern_return_t kerr = task_info(mach_task_self(),
+                                   TASK_BASIC_INFO,
+                                   (task_info_t)&info,
+                                   &size);
+    if( kerr == KERN_SUCCESS ) {
+        NSLog(@"Memory in use: %fMB", (float)info.resident_size/1024./1024.);
+    } else {
+        NSLog(@"Error with task_info(): %s", mach_error_string(kerr));
+    }
+}
+
 +(void)watchdogTick
 {
-    static dispatch_once_t onceToken;
+   // static dispatch_once_t onceToken;
     static DPPHTTPRequestQOSRatingType lastQOSRating = DPPQOSGood;
-    static DPPHTTPRequestNetworkStatus lastNetworkStatus = DPPNotReachable;
     
     //LH this will check performance and suspend the low priority queue if needed..
     //also handles reachability
     @synchronized(self)
     {
-        NSOperationQueue* lowPriorityQueue = [DPPHTTPRequest lowPriorityNetworkQueue];
-        
-        
-        if(-[startupDate timeIntervalSinceNow] > kDefaultQueueStartupExclusiveTime && lastRequestDate == nil)
-        { // here if the exclusive time has expired and we've not had a request, then allow the low priority queue to run
-            dispatch_once(&onceToken, ^{
-            if(lowPriorityQueue.isSuspended)
-            {
-                [DPPHTTPRequest suspendLowPriority:NO];
+        @autoreleasepool {
+            NSOperationQueue* lowPriorityQueue = [DPPHTTPRequest lowPriorityNetworkQueue];
+            
+            if(lastQOSRating != [self networkQOSRatingType])
+            {//LH send out a QOS notification
+                [[NSNotificationCenter defaultCenter] postNotificationName:kDPPHTTPRequestQOSRatingDidChange object:self];
             }
-            });
-        }
-        
-        DPPHTTPRequestNetworkStatus newStatus = [self networkStatus];
-        if(lastNetworkStatus != newStatus)
-        {
-            if(newStatus == DPPNotReachable)
+            lastQOSRating = [self networkQOSRatingType];
+            static int reduceTick = 0;
+            if(reduceTick%5 == 0)
             {
-                @synchronized(self)
-                {
-                    transferRateAvrValue = kEdgeBandwidthMB; //LH reset the QOS rating
-                }
+                NSLog(@"DPPHTTPRequest %f MBs (total %fMB) (%d) Main q %d secondary q %d",[DPPHTTPRequest networkQOSMBs],[DPPHTTPRequest totalTransferedMB],[DPPHTTPRequest requestCount],[DPPHTTPRequest defaultNetworkQueue].operationCount,lowPriorityQueue.operationCount);
+                [self report_memory];
             }
-            //NSLog(@"kDPPHTTPRequestNetworkStatusDidChange %d",[self networkStatus]);
-            [[NSNotificationCenter defaultCenter] postNotificationName:kDPPHTTPRequestNetworkStatusDidChange object:self];
-        }
-        lastNetworkStatus = newStatus;
-        
-        if(lastQOSRating != [self networkQOSRatingType])
-        {//LH send out a QOS notification
-            [[NSNotificationCenter defaultCenter] postNotificationName:kDPPHTTPRequestQOSRatingDidChange object:self];
-        }
-        lastQOSRating = [self networkQOSRatingType];
-        
-        if(lastRequestDate!=nil) //LH if we're had a request (sampled its rate) then apply QOS
-        {
-                int liveOperations=0;
-                int cancelledOperations =0;
-                for(NSOperation* operation in lowPriorityQueue.operations)
+            reduceTick++;
+
+           /* int liveOperations=0;
+            int cancelledOperations =0;
+            for(NSOperation* operation in lowPriorityQueue.operations.reverseObjectEnumerator)
+            {
+                if(!operation.isCancelled && !operation.isFinished)
                 {
-                    if(!operation.isCancelled && !operation.isFinished)
+                    liveOperations++;
+                    if(liveOperations > kMaxLowPriorityItems)
                     {
-                        liveOperations++;
-                        if(liveOperations > kMaxLowPriorityItems)
-                        {
-                            [operation cancel];
-                            cancelledOperations++;
-                        }
+                        [operation cancel];
+                        cancelledOperations++;
                     }
                 }
-            if([self networkQOSRating] > kLowQOSRating)
-            {//usable connection do nothing
-                [DPPHTTPRequest suspendLowPriority:NO cancelOperations:NO];
-            }
-            else
-            {//very poor connection so suspend the low priority queue and cancel the current low priority operations!!
-                if(!lowPriorityQueue.isSuspended)
-                {
-                    [DPPHTTPRequest suspendLowPriority:YES cancelOperations:YES];
-                        //at the end of each default queue operation the low Priority will be resumed if needed
-                }
-            }
+            }*/
         }
     }
+}
+
++(float)networkQOSMBs
+{
+    return transferRateAvrValue;
 }
 
 +(float)networkQOSRating
@@ -1160,22 +1312,27 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     }
 }
 
++(void)addBytesTransfered:(NSUInteger)bytes
+{
+    transferedMB += ((double)bytes / 1024.0/1024.0);
+}
+
++(float)totalTransferedMB
+{
+    return transferedMB;
+}
+
 -(NSTimeInterval)responseTime
 {
-    @synchronized(self)
-    {
         if(_responseDate == nil || _startDate ==nil)
         {
             return [[NSDate distantFuture] timeIntervalSince1970];
         }
         return [_responseDate timeIntervalSinceDate:_startDate];
-    }
 }
 
 -(NSTimeInterval)transferTime
 {
-    @synchronized(self)
-    {
         if(_responseDate == nil)
         {
             return [[NSDate distantFuture] timeIntervalSince1970];
@@ -1185,31 +1342,26 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
             return [[NSDate date] timeIntervalSinceDate:_responseDate];
         }
         return [_transferDate timeIntervalSinceDate:_responseDate];
-    }
 }
 
 -(NSTimeInterval)processingTime
 {
-    @synchronized(self)
-    {
         if(_transferDate ==nil || _completionDate ==nil)
         {
             return [[NSDate distantFuture] timeIntervalSince1970];
         }
         return [_completionDate timeIntervalSinceDate:_transferDate];
-    }
 }
 
 -(NSTimeInterval)requestTime
 {
-    @synchronized(self)
-    {
+
         if(_startDate ==nil ||  _completionDate ==nil)
         {
             return [[NSDate distantFuture] timeIntervalSince1970];
         }
         return [_completionDate timeIntervalSinceDate:_startDate];
-    }
+   
 }
 
 -(float)requestTransferRateMBs
@@ -1232,6 +1384,101 @@ static double transferRateAvrValue = kEdgeBandwidthMB;
     return 0;
 }
 
+-(void)addDidRecieveResponseBlockOnBackground:(DPPHTTPResponseBlockType)responseBlock
+{
+    if(self.completed)
+    {
+        if(self.state == DPPComplete)
+        {
+            dispatch_async([DPPHTTPRequest defaultDispatchQueue],^()
+                           {
+                               @autoreleasepool {  //LH this is to garantee any created objects are released right away, GCD may release after several ops
+                                   responseBlock(self);
+                               }
+                           });
+        }
+    }
+    else
+    {
+        if(self.didRecieveResponseBlockOnBackground)
+        {
+            DPPHTTPResponseBlockType oldBlock = self.didRecieveResponseBlockOnBackground;
+            self.didRecieveResponseBlockOnBackground = ^(DPPHTTPRequest* blockRequest)
+            {
+                oldBlock(blockRequest);
+                responseBlock(blockRequest);
+            };
+        }
+        else
+        {
+            self.didRecieveResponseBlockOnBackground = responseBlock;
+        }
+    }
+}
+
+-(void)addDidRecieveResponseBlock:(DPPHTTPResponseBlockType)responseBlock
+{
+    if(self.completed)
+    {
+        if(self.state == DPPComplete)
+        {
+                responseBlock(self);
+        }
+    }
+    else
+    {
+        if(self.didRecieveResponseBlock)
+        {
+            DPPHTTPResponseBlockType oldBlock = self.didRecieveResponseBlock;
+            self.didRecieveResponseBlock = ^(DPPHTTPRequest* blockRequest)
+            {
+                oldBlock(blockRequest);
+                responseBlock(blockRequest);
+            };
+        }
+        else
+        {
+            self.didRecieveResponseBlock = responseBlock;
+        }
+    }
+}
+
+-(void)addDidFailToRecieveResponseBlock:(void(^)(DPPHTTPRequest* request,NSError* error))responseBlock
+{
+    if(self.completed)
+    {
+        if(self.state == DPPComplete)
+        {
+                responseBlock(self,nil);
+        }
+    }
+    else
+    {
+        if(self.didRecieveResponseBlock)
+        {
+            DPPHTTPResponseFailBlockType oldBlock = self.didFailToRecieveResponseBlock;
+            self.didFailToRecieveResponseBlock = ^(DPPHTTPRequest* blockRequest,NSError* error)
+            {
+                oldBlock(blockRequest,error);
+                responseBlock(blockRequest,error);
+            };
+        }
+        else
+        {
+            self.didFailToRecieveResponseBlock = responseBlock;
+        }
+    }
+}
+
+-(void)dealloc
+{
+   // NSLog(@"dealloc'd request");
+    self.internalConnection = nil;
+    self.internalData = nil;
+    self.internalRequest = nil;
+    self.response = nil;
+    _debugCreatedCallstack =nil;
+}
 
 + (BOOL)isOfflineError:(NSError *)error
 {

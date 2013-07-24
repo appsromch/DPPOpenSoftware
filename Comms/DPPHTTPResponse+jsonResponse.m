@@ -19,25 +19,28 @@
 -(NSDictionary*)bodyJSON
 {
     NSError* error=nil;
-    
-    id jsonData = [NSJSONSerialization JSONObjectWithData:self.body options:NSJSONReadingMutableContainers|NSJSONReadingAllowFragments  error:&error];
-                       
-    NSDictionary*   jsonDict = nil;
-    
-    if(error)
+    if(self.processedBody == nil)
     {
-        return nil;
-    }
+        id jsonData = [NSJSONSerialization JSONObjectWithData:self.body options:NSJSONReadingMutableContainers|NSJSONReadingAllowFragments  error:&error];
+                           
+        NSDictionary*   jsonDict = nil;
+        
+        if(error)
+        {
+            return nil;
+        }
 
-    if([jsonData isKindOfClass:[NSArray class]])
-    {//if we are an array put us in a root dictionary
-       jsonDict = [NSMutableDictionary dictionaryWithObjectsAndKeys:jsonData,@"root", nil];
+        if([jsonData isKindOfClass:[NSArray class]])
+        {//if we are an array put us in a root dictionary
+           jsonDict = [NSMutableDictionary dictionaryWithObject:jsonData forKey:@"root"];
+        }
+        else 
+        {
+           jsonDict = jsonData;
+        }
+        self.processedBody = jsonDict;
     }
-    else 
-    {
-       jsonDict = jsonData;
-    }
-    return jsonDict;
+    return self.processedBody;
 }
 
 @end

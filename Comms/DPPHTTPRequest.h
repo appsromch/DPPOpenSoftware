@@ -28,9 +28,9 @@
 #define kHTTPStatusCodeSeverError 500
 
 
-#define kDefaultNetworkQueueMaxConcurrent 5
-#define kLowPriorityNetworkQueueMaxConcurrent 5
-#define kMaxLowPriorityItems 20
+#define kDefaultNetworkQueueMaxConcurrent 3
+#define kLowPriorityNetworkQueueMaxConcurrent 3
+#define kMaxLowPriorityItems 25
 
 #define kDefaultQueueStartupExclusiveTime 0.5
 #define kNormalQOSRating 0.5 //must be above this to be OK
@@ -66,6 +66,7 @@ typedef enum
 } DPPHTTPRequestNetworkStatus;
 
 typedef void(^(DPPHTTPResponseBlockType))(DPPHTTPRequest*);
+typedef void(^(DPPHTTPResponseFailBlockType))(DPPHTTPRequest* request,NSError* error);
 
 typedef enum {
     DPPUnknown,
@@ -96,8 +97,7 @@ typedef enum {
 @property(nonatomic,readonly) NSURLRequest* request;
 @property(nonatomic,readonly) NSURL* url;
 @property(nonatomic,strong) DPPHTTPResponse* response;
-@property(nonatomic,assign) id<DPPHTTPRequestDelegate> delegate; //LH deprecated
-@property(nonatomic,assign) BOOL debugMode;
+@property(nonatomic,weak) id<DPPHTTPRequestDelegate> delegate; //LH deprecated
 @property(nonatomic,assign) NSTimeInterval connectiontTimeoutInterval;
 @property(nonatomic,assign) NSTimeInterval networkQOSTimeoutInterval; //Quality of service timeout (entire request timeout not just connection)
 @property(nonatomic,readonly) BOOL networkQOSTimeoutExpired;
@@ -112,45 +112,49 @@ typedef enum {
 @property(nonatomic,assign) BOOL cached;
 @property(nonatomic,strong) NSMutableDictionary* headerValues;
 @property(nonatomic,readonly) NSArray* dependencies;
+@property(nonatomic,readonly) int numberOfTries;
 
-@property(nonatomic,copy) void(^willRecieveResponseBlock)(DPPHTTPRequest*);
-@property(nonatomic,copy) void(^didRecieveResponseBlock)(DPPHTTPRequest*);
-@property(nonatomic,copy) void(^didFailToRecieveResponseBlock)(DPPHTTPRequest*,NSError* error);
-@property(nonatomic,copy) void(^didRecieveProgressBlock)(DPPHTTPRequest*);
-@property(nonatomic,copy) void(^networkQOSDidTimeout)(DPPHTTPRequest*);
+@property(nonatomic,readonly) NSArray* debugCreatedCallstack; //LH this holds the call stack for when the socket was created (for debugging)
 
-@property(nonatomic,copy) void(^didRecieveResponseBlockOnBackground)(DPPHTTPRequest*);
-@property(nonatomic,copy) void(^didRecieveResponseBlockOnBackgroundCompletion)(DPPHTTPRequest*);
+@property(nonatomic,copy) void(^willRecieveResponseBlock)(DPPHTTPRequest* request);
+@property(nonatomic,copy) void(^didRecieveResponseBlock)(DPPHTTPRequest* request);
+@property(nonatomic,copy) void(^didFailToRecieveResponseBlock)(DPPHTTPRequest* request,NSError* error);
+@property(nonatomic,copy) void(^didRecieveProgressBlock)(DPPHTTPRequest* request);
+@property(nonatomic,copy) void(^networkQOSDidTimeout)(DPPHTTPRequest* request);
+
+@property(nonatomic,copy) void(^didRecieveResponseBlockOnBackground)(DPPHTTPRequest* request);
+@property(nonatomic,copy) void(^didRecieveResponseBlockOnBackgroundCompletion)(DPPHTTPRequest* request);
 
 
++(void)setupCacheWithMemorySizeMB:(float)memorySize diskSizeMB:(float)diskSize;
 +(DPPHTTPRequest*)httpRequestWithURL:(NSURL*)url method:(NSString*)method;
 
 +(DPPHTTPRequest*)httpGETRequestWithURL:(NSURL*)url;
 
 +(id)httpRequestWithURL:(NSURL*)url
                  method:(NSString*)httpMethod
-                 onSuccess:(void(^)(DPPHTTPRequest*))success
-                 onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure;
+                 onSuccess:(void(^)(DPPHTTPRequest* request))success
+                 onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure;
 
 +(id)httpGETRequestWithURL:(NSURL*)url
-                 onSuccess:(DPPHTTPResponseBlockType)success
-                 onFailure:(void(^)(DPPHTTPRequest*,NSError* error))failure;
+                 onSuccess:(void(^)(DPPHTTPRequest* request))success
+                 onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure;
 
 +(DPPHTTPRequest*)httpGETRequestWithURL:(NSURL*)url
-                   responseInBackground:(void(^)(DPPHTTPRequest*))background
-                             completion:(void(^)(DPPHTTPRequest*))completion;
+                   responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                             completion:(void(^)(DPPHTTPRequest* request))completion;
 
 +(DPPHTTPRequest*)httpHEADERRequestWithURL:(NSURL*)url;
 
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postData:(NSData*)postData
                          withContentType:(NSString*)contentType
-                    responseInBackground:(void(^)(DPPHTTPRequest*))background
-                              completion:(void(^)(DPPHTTPRequest*))completion;
+                    responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                              completion:(void(^)(DPPHTTPRequest* request))completion;
 
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url
                                 postData:(NSData*)postData
                          withContentType:(NSString*)contentType
-                               onSuccess:(void(^)(DPPHTTPRequest*))success
+                               onSuccess:(void(^)(DPPHTTPRequest* request))success
                                onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure;
 
 +(DPPHTTPRequest*)httpPOSTRequestWithURL:(NSURL*)url postData:(NSData*)postData withContentType:(NSString*)contentType;
@@ -161,10 +165,14 @@ typedef enum {
 +(DPPHTTPRequest*)httpPUTRequestWithURL:(NSURL*)url putFile:(NSURL*)inputFile withContentType:(NSString*)contentType;
 +(DPPHTTPRequest*)httpPUTFormFile:(NSURL*)url putData:(NSData*)data forFormField:(NSString*)formField;
 +(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType;
-+(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
-                     responseInBackground:(void(^)(DPPHTTPRequest*))background
-                               completion:(void(^)(DPPHTTPRequest*))completion;
 
++(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
+                     responseInBackground:(void(^)(DPPHTTPRequest* request))background
+                               completion:(void(^)(DPPHTTPRequest* request))completion;
+
++(DPPHTTPRequest*)httpPATCHRequestWithURL:(NSURL*)url patchData:(NSData*)patchData withContentType:(NSString*)contentType
+                                onSuccess:(void(^)(DPPHTTPRequest* request))success
+                                onFailure:(void(^)(DPPHTTPRequest* request,NSError* error))failure;
 
 
 +(DPPHTTPRequest*)findRequestWithURL:(NSURL*)url;
@@ -178,7 +186,10 @@ typedef enum {
 +(void)cancelQueue;
 +(void)cancelQueue:(NSOperationQueue*)queue;
 
++(void)setDebugMode:(BOOL)debug;
+
 -(void)cancel;
+-(void)cancelIfNotInProgress;
 -(void)start;
 
 #pragma mark Queue system
@@ -207,10 +218,16 @@ typedef enum {
 -(void)removeDependencies:(NSArray*)objects;
 -(void)removeDependency:(DPPHTTPRequest*)request;
 
+-(BOOL)containedInCache:(NSURLCache*)cache;
+
 -(void)waitUntilDone;
 
 -(void)clearCompletionCallbacks;
 -(void)clearALLCallbacks;
+
+-(void)addDidRecieveResponseBlock:(DPPHTTPResponseBlockType)responseBlock;
+-(void)addDidRecieveResponseBlockOnBackground:(DPPHTTPResponseBlockType)reponseBlock;
+-(void)addDidFailToRecieveResponseBlock:(void(^)(DPPHTTPRequest* request,NSError* error))responseBlock;
 
 #pragma mark QOS metrics
 
@@ -218,7 +235,12 @@ typedef enum {
 +(DPPHTTPRequestNetworkStatus)networkStatus;
 +(NSString*)networkQOSRatingDescription;
 +(float)networkQOSRating;
++(float)networkQOSMBs;
 +(DPPHTTPRequestQOSRatingType)networkQOSRatingType;
++(void)addBytesTransfered:(NSUInteger)bytes;
++(float)totalTransferedMB;
+
++(NSArray*)allRequests;
 
 -(NSTimeInterval)requestTime;
 -(NSTimeInterval)responseTime;
